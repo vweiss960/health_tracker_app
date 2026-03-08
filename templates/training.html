@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Training - Health Tracker{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 1rem;">Training</h1>
+
+{% if plan_name %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+        <h2 style="margin: 0;">Weekly Plan: {{ plan_name }}</h2>
+        <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+            <a href="{{ url_for('ai.chat_page') }}" class="btn btn-sm btn-primary no-print">Edit with AI</a>
+            <button type="button" class="btn btn-sm btn-success no-print" onclick="window.print()">Print Plan</button>
+            <form method="POST" action="{{ url_for('training.delete_plan') }}" style="display:inline;" class="no-print">
+                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this plan?')">Remove Plan</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="plan-week">
+    {% for day_name, exercises in ordered_plan %}
+        <div class="plan-day {{ 'plan-day-today' if day_name == today_day_name }}">
+            <div class="plan-day-header">{{ day_name | capitalize }}{% if day_name == today_day_name %} <span style="font-size: 0.75rem; opacity: 0.8;">(today)</span>{% endif %}</div>
+            <div class="plan-day-body">
+            {% for ex in exercises %}
+                <div class="plan-exercise">
+                    <div class="plan-exercise-name">
+                        {{ ex.exercise_name }}
+                        <a href="#" class="what-is-this" onclick="lookupExercise('{{ ex.exercise_name | e }}'); return false;">What is this?</a>
+                    </div>
+                    <div class="plan-exercise-detail">
+                        {% if ex.category %}<span class="plan-tag">{{ ex.category }}</span>{% endif %}
+                        {% if ex.sets and ex.reps %}{{ ex.sets }} x {{ ex.reps }}{% elif ex.sets %}{{ ex.sets }} sets{% elif ex.reps %}{{ ex.reps }}{% endif %}
+                        {% if ex.rest_seconds %}<span style="color: var(--text-muted);">| {{ ex.rest_seconds }}s rest</span>{% endif %}
+                    </div>
+                    {% if ex.notes %}<div class="plan-exercise-notes">{{ ex.notes }}</div>{% endif %}
+                </div>
+            {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 2rem;">
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">No weekly training plan set up yet.</p>
+    <a href="{{ url_for('ai.chat_page') }}" class="btn btn-primary">Create a Plan with AI</a>
+</div>
+{% endif %}
+
+<h2 style="margin: 1.5rem 0 1rem;">Exercise Log</h2>
+
+<div class="date-nav">
+    <a href="{{ url_for('training.training_log', date=(view_date - import_timedelta(days=1)).isoformat()) }}" class="btn btn-sm btn-primary">&larr;</a>
+    <form method="GET" style="display:inline;">
+        <input type="date" name="date" value="{{ view_date.isoformat() }}" onchange="this.form.submit()">
+    </form>
+    <a href="{{ url_for('training.training_log', date=(view_date + import_timedelta(days=1)).isoformat()) }}" class="btn btn-sm btn-primary">&rarr;</a>
+    <span style="color: var(--text-muted); font-size: 0.9rem;">{{ view_date.strftime('%A, %B %d, %Y') }}</span>
+</div>
+
+<div class="card">
+    <h2>Log Exercise</h2>
+    <form method="POST" action="{{ url_for('training.add_training') }}">
+        <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
+        <div class="form-grid">
+            <div class="form-group" style="grid-column: span 2;">
+                <label>Exercise Name</label>
+                <input type="text" name="exercise_name" placeholder="e.g. Bench Press, Squats, Running" required>
+            </div>
+            <div class="form-group">
+                <label>Category</label>
+                <select name="category">
+                    <option value="chest">Chest</option>
+                    <option value="back">Back</option>
+                    <option value="legs">Legs</option>
+                    <option value="shoulders">Shoulders</option>
+                    <option value="arms">Arms</option>
+                    <option value="core">Core</option>
+                    <option value="cardio">Cardio</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Sets</label>
+                <input type="number" name="sets" placeholder="e.g. 3">
+            </div>
+            <div class="form-group">
+                <label>Reps</label>
+                <input type="number" name="reps" placeholder="e.g. 10">
+            </div>
+            <div class="form-group">
+                <label>Weight Used</label>
+                <input type="number" step="0.5" name="weight_used" placeholder="lbs / kg">
+            </div>
+            <div class="form-group">
+                <label>Duration (min)</label>
+                <input type="number" step="1" name="duration_minutes" placeholder="minutes">
+            </div>
+            <div class="form-group">
+                <label>Calories Burned</label>
+                <input type="number" step="1" name="calories_burned" placeholder="kcal">
+            </div>
+            <div class="form-group form-full">
+                <label>Notes</label>
+                <input type="text" name="notes" placeholder="Optional notes">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Add Exercise</button>
+    </form>
+</div>
+
+{% if entries %}
+<div class="card">
+    <h2>{{ view_date.strftime('%A') }}'s Workout</h2>
+    <div class="table-wrap">
+    <table>
+        <thead><tr><th>Exercise</th><th>Category</th><th>Sets</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Cal</th><th></th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+        <tr>
+            <td>{{ e.exercise_name }}</td>
+            <td>{{ e.category or '-' }}</td>
+            <td>{{ e.sets or '-' }}</td>
+            <td>{{ e.reps or '-' }}</td>
+            <td>{{ e.weight_used or '-' }}</td>
+            <td>{{ e.duration_minutes or '-' }}</td>
+            <td>{{ e.calories_burned or '-' }}</td>
+            <td>
+                <form method="POST" action="{{ url_for('training.delete_training', entry_id=e.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fix timezone: server is UTC, redirect to client's local date if no date param
+if (!new URLSearchParams(window.location.search).has('date')) {
+    const localDate = new Date().toISOString().slice(0, 10);
+    const serverDate = '{{ view_date.isoformat() }}';
+    if (localDate !== serverDate) {
+        window.location.replace(window.location.pathname + '?date=' + localDate);
+    }
+}
+
+function lookupExercise(name) {
+    fetch(`{{ url_for('training.exercise_video') }}?name=${encodeURIComponent(name)}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.url) {
+                window.open(data.url, '_blank');
+            }
+        });
+}
+</script>
+{% endblock %}

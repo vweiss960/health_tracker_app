@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Settings - Health Tracker{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 1rem;">Settings</h1>
+
+<div class="card">
+    <h2>Profile</h2>
+    <form method="POST">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Display Name</label>
+                <input type="text" name="display_name" value="{{ current_user.display_name or '' }}">
+            </div>
+            <div class="form-group">
+                <label>Fitness Level</label>
+                <select name="fitness_level">
+                    <option value="">Not set</option>
+                    <option value="beginner" {{ 'selected' if current_user.fitness_level == 'beginner' }}>Beginner</option>
+                    <option value="intermediate" {{ 'selected' if current_user.fitness_level == 'intermediate' }}>Intermediate</option>
+                    <option value="advanced" {{ 'selected' if current_user.fitness_level == 'advanced' }}>Advanced</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Target Weight</label>
+                <input type="number" step="0.1" name="target_weight" value="{{ current_user.target_weight or '' }}" placeholder="lbs / kg">
+            </div>
+            <div class="form-group">
+                <label>Daily Calorie Target</label>
+                <input type="number" name="target_calories" value="{{ current_user.target_calories or '' }}" placeholder="kcal">
+            </div>
+            <div class="form-group form-full">
+                <label>Dietary Restrictions / Preferences</label>
+                <input type="text" name="dietary_restrictions" value="{{ current_user.dietary_restrictions or '' }}" placeholder="e.g. Vegetarian, gluten-free, lactose intolerant">
+            </div>
+            <div class="form-group form-full">
+                <label>Overall Health Goals</label>
+                <textarea name="health_goals" rows="3" placeholder="e.g. Lose 20 lbs over 6 months, build lean muscle, improve cardiovascular endurance, reduce body fat percentage to 15%">{{ current_user.health_goals or '' }}</textarea>
+            </div>
+        </div>
+
+        <h2 style="margin-top: 2rem;">AI Configuration</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>AI Provider</label>
+                <select name="ai_provider">
+                    <option value="claude" {{ 'selected' if current_user.ai_provider == 'claude' }}>Claude (Anthropic)</option>
+                    <option value="openai" {{ 'selected' if current_user.ai_provider == 'openai' }}>OpenAI (GPT-4o)</option>
+                </select>
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+                <label>AI API Key</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="password" name="ai_api_key" placeholder="{{ '••••••••' if current_user.ai_api_key else 'Enter your API key' }}" style="flex: 1;">
+                    <a href="https://console.anthropic.com/settings/keys" target="_blank" class="btn btn-sm" style="background: var(--border); white-space: nowrap;">Anthropic Keys</a>
+                    <a href="https://platform.openai.com/api-keys" target="_blank" class="btn btn-sm" style="background: var(--border); white-space: nowrap;">OpenAI Keys</a>
+                </div>
+                <small style="color: var(--text-muted);">Leave blank to keep existing key</small>
+            </div>
+        </div>
+
+        <h2 style="margin-top: 2rem;">Nutrition Lookup APIs</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">USDA and Open Food Facts are free with no key required. CalorieNinjas offers a free tier (10,000 requests/month) but needs an API key.</p>
+        <div class="form-grid">
+            <div class="form-group" style="grid-column: span 2;">
+                <label>CalorieNinjas API Key</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="password" name="calorieninjas_api_key" placeholder="{{ '••••••••' if current_user.calorieninjas_api_key else 'Enter your CalorieNinjas API key' }}" style="flex: 1;">
+                    <a href="https://calorieninjas.com/api" target="_blank" class="btn btn-sm" style="background: var(--border); white-space: nowrap;">Get Free Key</a>
+                </div>
+                <small style="color: var(--text-muted);">Leave blank to keep existing key</small>
+            </div>
+        </div>
+
+        <h2 style="margin-top: 2rem;">YouTube / Music</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">Used by the Music tool to search YouTube for playlists. Requires a Google Cloud API key with YouTube Data API v3 enabled.</p>
+        <div class="form-grid">
+            <div class="form-group" style="grid-column: span 2;">
+                <label>YouTube Data API Key</label>
+                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="password" name="youtube_api_key" placeholder="{{ '••••••••' if current_user.youtube_api_key else 'Enter your YouTube API key' }}" style="flex: 1;">
+                    <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="btn btn-sm" style="background: var(--border); white-space: nowrap;">Google Cloud Console</a>
+                </div>
+                <small style="color: var(--text-muted);">Leave blank to keep existing key. Free quota: 10,000 units/day.</small>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 1.5rem;">Save Settings</button>
+    </form>
+</div>
+{% endblock %}

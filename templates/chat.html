@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% block title %}AI Chat - Health Tracker{% endblock %}
+{% block content %}
+{% if not has_api_key %}
+<div class="no-key-warning">
+    <h2>AI Chat</h2>
+    <p>You need to configure your AI API key first.</p>
+    <a href="{{ url_for('settings.settings') }}" class="btn btn-primary" style="margin-top: 1rem;">Go to Settings</a>
+</div>
+{% else %}
+<div class="chat-layout">
+    <div class="chat-sidebar" id="chatSidebar">
+        <button class="btn btn-primary btn-sm" onclick="newConversation()" style="width: 100%; margin-bottom: 0.5rem;">+ New Chat</button>
+        <div class="conv-list" id="convList">
+        {% for conv in conversations %}
+            <div class="conv-item {{ 'active' if active_conv and conv.id == active_conv.id }}"
+                 data-id="{{ conv.id }}" onclick="switchConversation({{ conv.id }})">
+                <span class="conv-title">{{ conv.title }}</span>
+                <button class="conv-delete" onclick="event.stopPropagation(); deleteConversation({{ conv.id }})" title="Delete">&times;</button>
+            </div>
+        {% endfor %}
+        </div>
+    </div>
+    <div class="chat-main">
+        <div class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                {% if not messages %}
+                <div class="chat-message assistant">
+                    <div class="bubble">
+                        Hi! I'm your health assistant. I can help with nutrition, workouts, body metrics, and health goals. What would you like to work on?
+                    </div>
+                </div>
+                {% else %}
+                {% for msg in messages %}
+                <div class="chat-message {{ msg.role }}">
+                    <div class="bubble" data-raw="{{ msg.content | e }}"></div>
+                </div>
+                {% endfor %}
+                {% endif %}
+            </div>
+            <div class="chat-input-area">
+                <textarea id="chatInput" placeholder="Ask about your health data, nutrition, workouts..." rows="1"
+                    onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault();sendMessage();}"></textarea>
+                <button class="btn btn-primary" id="sendBtn" onclick="sendMessage()">Send</button>
+                <button class="btn btn-sm chat-sidebar-toggle" onclick="toggleSidebar()" title="Toggle conversations">&#9776;</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if has_api_key %}
+<script>
+const chatMessages = document.getElementById('chatMessages');
+const chatInput = document.getElementById('chatInput');
+const sendBtn = document.getElementById('sendBtn');
+let activeConvId = {{ active_conv.id if active_conv else 'null' }};
+
+// Render persisted messages
+document.querySelectorAll('.chat-message .bubble[data-raw]').forEach(bubble => {
+    const raw = bubble.getAttribute('data-raw');
+    bubble.removeAttribute('data-raw');
+    bubble.innerHTML = formatMarkdown(raw);
+});
+chatMessages.scrollTop = chatMessages.scrollHeight;
+
+function addMessage(role, content) {
+    const div = document.createElement('div');
+    div.className = `chat-message ${role}`;
+    const bubble = document.createElement('div');
+    bubble.className = 'bubble';
+    bubble.innerHTML = formatMarkdown(content);
+    div.appendChild(bubble);
+    chatMessages.appendChild(div);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return bubble;
+}
+
+function formatMarkdown(text) {
+    let html = text
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+        .replace(/^## (.+)$/gm, '<h3>$1</h3>')
+        .replace(/^- (.+)$/gm, '<li>$1</li>')
+        .replace(/^(\d+)\. (.+)$/gm, '<li>$2</li>')
+        .replace(/\n\n/g, '</p><p>')
+        .replace(/\n/g, '<br>');
+    html = '<p>' + html + '</p>';
+    html = html.replace(/(<li>.*?<\/li>)+/gs, match => '<ul>' + match + '</ul>');
+    return html;
+}
+
+async function sendMessage() {
+    const message = chatInput.value.trim();
+    if (!message) return;
+
+    chatInput.value = '';
+    chatInput.style.height = 'auto';
+    addMessage('user', message);
+
+    sendBtn.disabled = true;
+    sendBtn.textContent = '...';
+
+    // Create streaming bubble
+    const streamDiv = document.createElement('div');
+    streamDiv.className = 'chat-message assistant';
+    const streamBubble = document.createElement('div');
+    streamBubble.className = 'bubble';
+    streamBubble.innerHTML = '<span style="color: var(--text-muted);">Thinking...</span>';
+    streamDiv.appendChild(streamBubble);
+    chatMessages.appendChild(streamDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    try {
+        const response = await fetch('{{ url_for("ai.stream_message") }}', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ message, conversation_id: activeConvId })
+        });
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let fullText = '';
+        let started = false;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                const jsonStr = line.slice(6);
+                let data;
+                try { data = JSON.parse(jsonStr); } catch { continue; }
+
+                if (data.error) {
+                    streamBubble.innerHTML = formatMarkdown('Error: ' + data.error);
+                    break;
+                }
+
+                if (data.text) {
+                    if (!started) {
+                        streamBubble.innerHTML = '';
+                        started = true;
+                    }
+                    fullText += data.text;
+                    streamBubble.innerHTML = formatMarkdown(fullText);
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+
+                if (data.status) {
+                    if (!started) {
+                        streamBubble.innerHTML = `<span style="color: var(--text-muted);">${data.status}</span>`;
+                    }
+                }
+
+                if (data.done) {
+                    if (data.conversation_id && !activeConvId) {
+                        activeConvId = data.conversation_id;
+                        // Reload sidebar
+                        location.href = '{{ url_for("ai.chat_page") }}?conv=' + activeConvId;
+                        return;
+                    }
+                }
+            }
+        }
+
+        // If no text was streamed, ensure we show something
+        if (!started) {
+            streamBubble.innerHTML = '<span style="color: var(--text-muted);">No response received.</span>';
+        }
+    } catch (e) {
+        streamBubble.innerHTML = formatMarkdown('Error: Failed to connect. Please check your settings.');
+    }
+
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send';
+    chatInput.focus();
+}
+
+async function newConversation() {
+    const resp = await fetch('{{ url_for("ai.new_conversation") }}', { method: 'POST' });
+    const data = await resp.json();
+    location.href = '{{ url_for("ai.chat_page") }}?conv=' + data.id;
+}
+
+function switchConversation(id) {
+    location.href = '{{ url_for("ai.chat_page") }}?conv=' + id;
+}
+
+async function deleteConversation(id) {
+    if (!confirm('Delete this conversation?')) return;
+    await fetch(`{{ url_for("ai.chat_page") }}/delete-conversation/${id}`, { method: 'POST' });
+    if (id === activeConvId) {
+        location.href = '{{ url_for("ai.chat_page") }}';
+    } else {
+        document.querySelector(`.conv-item[data-id="${id}"]`)?.remove();
+    }
+}
+
+function toggleSidebar() {
+    document.getElementById('chatSidebar').classList.toggle('open');
+}
+
+chatInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+</script>
+{% endif %}
+{% endblock %}

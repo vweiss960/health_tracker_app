@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Login - Health Tracker{% endblock %}
+{% block content %}
+<div class="auth-container">
+    <div class="card">
+        <h2>Health Tracker</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Sign in to your account</p>
+        <form method="POST">
+            <div class="form-group">
+                <input type="text" name="username" placeholder="Username" required autofocus>
+            </div>
+            <div class="form-group">
+                <input type="password" name="password" placeholder="Password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Sign In</button>
+        </form>
+        <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-muted);">
+            Don't have an account? <a href="{{ url_for('auth.register') }}" style="color: var(--primary);">Register</a>
+        </p>
+    </div>
+</div>
+{% endblock %}

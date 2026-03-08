@@ -1,0 +1,14 @@
+services:
+  health-tracker:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - health_data:/app/data
+    environment:
+      - SECRET_KEY=change-me-in-production
+      - DATABASE_URL=sqlite:////app/data/health_tracker.db
+    restart: unless-stopped
+
+volumes:
+  health_data:

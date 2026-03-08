@@ -1,0 +1,9 @@
+flask>=3.0
+flask-login>=0.6
+flask-sqlalchemy>=3.1
+werkzeug>=3.0
+anthropic>=0.40
+openai>=1.50
+gunicorn>=22.0
+requests>=2.31
+ytmusicapi>=1.7

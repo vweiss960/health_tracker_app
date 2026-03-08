@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - Health Tracker{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 1rem;">Body Metrics</h1>
+
+{% if metrics and metrics[0].weight %}
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="value">{{ "%.1f"|format(metrics[0].weight) }}</div>
+        <div class="label">Current Weight</div>
+    </div>
+    {% if metrics[0].waist %}
+    <div class="stat-card">
+        <div class="value">{{ "%.1f"|format(metrics[0].waist) }}</div>
+        <div class="label">Waist</div>
+    </div>
+    {% endif %}
+    {% if metrics[0].chest %}
+    <div class="stat-card">
+        <div class="value">{{ "%.1f"|format(metrics[0].chest) }}</div>
+        <div class="label">Chest</div>
+    </div>
+    {% endif %}
+    {% if metrics[0].belly %}
+    <div class="stat-card">
+        <div class="value">{{ "%.1f"|format(metrics[0].belly) }}</div>
+        <div class="label">Belly</div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Trends</h2>
+    <div class="chart-container">
+        <canvas id="metricsChart"></canvas>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Log Measurements</h2>
+    <form method="POST" action="{{ url_for('metrics.add_metric') }}">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" name="date" value="{{ today }}" required>
+            </div>
+            <div class="form-group">
+                <label>Weight</label>
+                <input type="number" step="0.1" name="weight" placeholder="lbs / kg">
+            </div>
+            <div class="form-group">
+                <label>Belly</label>
+                <input type="number" step="0.1" name="belly" placeholder="inches / cm">
+            </div>
+            <div class="form-group">
+                <label>Waist</label>
+                <input type="number" step="0.1" name="waist" placeholder="inches / cm">
+            </div>
+            <div class="form-group">
+                <label>Chest</label>
+                <input type="number" step="0.1" name="chest" placeholder="inches / cm">
+            </div>
+            <div class="form-group">
+                <label>Left Arm</label>
+                <input type="number" step="0.1" name="arm_left" placeholder="inches / cm">
+            </div>
+            <div class="form-group">
+                <label>Right Arm</label>
+                <input type="number" step="0.1" name="arm_right" placeholder="inches / cm">
+            </div>
+            <div class="form-group">
+                <label>Left Leg</label>
+                <input type="number" step="0.1" name="leg_left" placeholder="inches / cm">
+            </div>
+            <div class="form-group">
+                <label>Right Leg</label>
+                <input type="number" step="0.1" name="leg_right" placeholder="inches / cm">
+            </div>
+            <div class="form-group form-full">
+                <label>Notes</label>
+                <input type="text" name="notes" placeholder="Optional notes">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Save Measurements</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Recent Entries</h2>
+    <div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th><th>Weight</th><th>Belly</th><th>Waist</th><th>Chest</th>
+                <th>L Arm</th><th>R Arm</th><th>L Leg</th><th>R Leg</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for m in metrics %}
+            <tr>
+                <td>{{ m.date.strftime('%b %d') }}</td>
+                <td>{{ m.weight or '-' }}</td>
+                <td>{{ m.belly or '-' }}</td>
+                <td>{{ m.waist or '-' }}</td>
+                <td>{{ m.chest or '-' }}</td>
+                <td>{{ m.arm_left or '-' }}</td>
+                <td>{{ m.arm_right or '-' }}</td>
+                <td>{{ m.leg_left or '-' }}</td>
+                <td>{{ m.leg_right or '-' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('metrics.delete_metric', metric_id=m.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Fix date inputs to use client's local date instead of server UTC
+(function() {
+    const localDate = new Date().toISOString().slice(0, 10);
+    document.querySelectorAll('input[type="date"]').forEach(el => { if (el.value !== localDate) el.value = localDate; });
+})();
+
+fetch('{{ url_for("metrics.api_data") }}')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.length) return;
+        const labels = data.map(d => d.date);
+        const datasets = [];
+        const fields = [
+            {key: 'weight', label: 'Weight', color: '#4f46e5'},
+            {key: 'waist', label: 'Waist', color: '#16a34a'},
+            {key: 'belly', label: 'Belly', color: '#f59e0b'},
+            {key: 'chest', label: 'Chest', color: '#dc2626'},
+        ];
+        fields.forEach(f => {
+            const vals = data.map(d => d[f.key]);
+            if (vals.some(v => v !== null)) {
+                datasets.push({
+                    label: f.label, data: vals,
+                    borderColor: f.color, backgroundColor: f.color + '20',
+                    tension: 0.3, fill: false,
+                });
+            }
+        });
+        new Chart(document.getElementById('metricsChart'), {
+            type: 'line',
+            data: { labels, datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { position: 'top' } },
+                scales: { x: { display: true }, y: { display: true } },
+            }
+        });
+    });
+
+</script>
+{% endblock %}

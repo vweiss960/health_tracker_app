@@ -1,0 +1,127 @@
+from flask_sqlalchemy import SQLAlchemy
+from flask_login import UserMixin
+from datetime import datetime, timezone
+
+db = SQLAlchemy()
+
+
+class User(UserMixin, db.Model):
+    __tablename__ = 'users'
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(80), unique=True, nullable=False)
+    password_hash = db.Column(db.String(256), nullable=False)
+    display_name = db.Column(db.String(120))
+    target_weight = db.Column(db.Float)
+    target_calories = db.Column(db.Integer)
+    health_goals = db.Column(db.Text)  # free-text overall health goals
+    fitness_level = db.Column(db.String(20))  # beginner, intermediate, advanced
+    dietary_restrictions = db.Column(db.String(500))
+    ai_provider = db.Column(db.String(20), default='claude')  # 'claude' or 'openai'
+    ai_api_key = db.Column(db.String(256))
+    calorieninjas_api_key = db.Column(db.String(256))
+    youtube_api_key = db.Column(db.String(256))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    metrics = db.relationship('BodyMetric', backref='user', lazy=True, cascade='all, delete-orphan')
+    food_entries = db.relationship('FoodEntry', backref='user', lazy=True, cascade='all, delete-orphan')
+    training_entries = db.relationship('TrainingEntry', backref='user', lazy=True, cascade='all, delete-orphan')
+    chat_conversations = db.relationship('ChatConversation', backref='user', lazy=True, cascade='all, delete-orphan')
+    chat_messages = db.relationship('ChatMessage', backref='user', lazy=True, cascade='all, delete-orphan')
+    training_plans = db.relationship('TrainingPlan', backref='user', lazy=True, cascade='all, delete-orphan')
+    progress_photos = db.relationship('ProgressPhoto', backref='user', lazy=True, cascade='all, delete-orphan')
+
+
+class BodyMetric(db.Model):
+    __tablename__ = 'body_metrics'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    weight = db.Column(db.Float)
+    belly = db.Column(db.Float)
+    waist = db.Column(db.Float)
+    chest = db.Column(db.Float)
+    arm_left = db.Column(db.Float)
+    arm_right = db.Column(db.Float)
+    leg_left = db.Column(db.Float)
+    leg_right = db.Column(db.Float)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class FoodEntry(db.Model):
+    __tablename__ = 'food_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    meal_type = db.Column(db.String(20))  # breakfast, lunch, dinner, snack
+    food_name = db.Column(db.String(200), nullable=False)
+    serving_size = db.Column(db.String(100))
+    calories = db.Column(db.Float)
+    protein = db.Column(db.Float)
+    carbs = db.Column(db.Float)
+    fat = db.Column(db.Float)
+    fiber = db.Column(db.Float)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ChatConversation(db.Model):
+    __tablename__ = 'chat_conversations'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(200), default='New Chat')
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    messages = db.relationship('ChatMessage', backref='conversation', lazy=True, cascade='all, delete-orphan')
+
+
+class ChatMessage(db.Model):
+    __tablename__ = 'chat_messages'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    conversation_id = db.Column(db.Integer, db.ForeignKey('chat_conversations.id'), nullable=True)
+    role = db.Column(db.String(20), nullable=False)  # 'user' or 'assistant'
+    content = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class ProgressPhoto(db.Model):
+    __tablename__ = 'progress_photos'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    filename = db.Column(db.String(300), nullable=False)
+    caption = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class TrainingPlan(db.Model):
+    __tablename__ = 'training_plans'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    day_of_week = db.Column(db.String(20), nullable=False)  # monday, tuesday, etc. or 'rest'
+    exercise_name = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50))
+    sets = db.Column(db.Integer)
+    reps = db.Column(db.String(50))  # string to allow ranges like "8-12"
+    rest_seconds = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    order_index = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class TrainingEntry(db.Model):
+    __tablename__ = 'training_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    exercise_name = db.Column(db.String(200), nullable=False)
+    category = db.Column(db.String(50))  # chest, back, legs, arms, shoulders, cardio, core
+    sets = db.Column(db.Integer)
+    reps = db.Column(db.Integer)
+    weight_used = db.Column(db.Float)
+    duration_minutes = db.Column(db.Float)
+    calories_burned = db.Column(db.Float)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
