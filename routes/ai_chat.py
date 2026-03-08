@@ -108,9 +108,24 @@ def send_message():
     data = request.get_json()
     user_message = data.get('message', '').strip()
     conv_id = data.get('conversation_id')
+    no_save = data.get('no_save', False)
 
     if not user_message:
         return jsonify({'error': 'Empty message'}), 400
+
+    # If no_save, do a quick AI call without creating conversation/messages
+    if no_save:
+        system_prompt = _get_system_prompt()
+        messages = [{"role": "user", "content": user_message}]
+        provider = current_user.ai_provider or 'claude'
+        try:
+            if provider == 'claude':
+                response_data = _call_claude(current_user.ai_api_key, system_prompt, messages)
+            else:
+                response_data = _call_openai(current_user.ai_api_key, system_prompt, messages)
+            return jsonify(response_data)
+        except Exception as e:
+            return jsonify({'error': str(e)}), 500
 
     # Get or create conversation
     if conv_id:

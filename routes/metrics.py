@@ -38,6 +38,30 @@ def add_metric():
     return redirect(url_for('metrics.dashboard'))
 
 
+@metrics_bp.route('/edit/<int:metric_id>', methods=['POST'])
+@login_required
+def edit_metric(metric_id):
+    metric = BodyMetric.query.get_or_404(metric_id)
+    if metric.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    date_str = request.form.get('date')
+    if date_str:
+        metric.date = datetime.strptime(date_str, '%Y-%m-%d').date()
+
+    metric.weight = _float_or_none(request.form.get('weight'))
+    metric.belly = _float_or_none(request.form.get('belly'))
+    metric.waist = _float_or_none(request.form.get('waist'))
+    metric.chest = _float_or_none(request.form.get('chest'))
+    metric.arm_left = _float_or_none(request.form.get('arm_left'))
+    metric.arm_right = _float_or_none(request.form.get('arm_right'))
+    metric.leg_left = _float_or_none(request.form.get('leg_left'))
+    metric.leg_right = _float_or_none(request.form.get('leg_right'))
+    metric.notes = request.form.get('notes', '').strip() or None
+    db.session.commit()
+    return redirect(url_for('metrics.dashboard'))
+
+
 @metrics_bp.route('/delete/<int:metric_id>', methods=['POST'])
 @login_required
 def delete_metric(metric_id):

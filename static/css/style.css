@@ -438,6 +438,117 @@ th { font-weight: 600; color: var(--text-muted); font-size: 0.8rem; text-transfo
 }
 .music-result-card.active .music-nokey-icon { background: var(--primary-dark); }
 
+/* Single Item Modal */
+.single-item-modal {
+    max-width: 500px;
+    width: 95%;
+}
+.single-item-modal .form-group input,
+.single-item-modal .form-group select {
+    font-size: 1rem;
+    padding: 0.6rem;
+}
+.single-item-macros {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+.single-item-macros .form-group input {
+    width: 100%;
+}
+
+@media (max-width: 768px) {
+    .single-item-modal {
+        max-width: none;
+        width: 100%;
+        max-height: 100vh;
+        height: 100%;
+        border-radius: 0;
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+    }
+    .single-item-modal form {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+    }
+    .single-item-modal .form-group input,
+    .single-item-modal .form-group select {
+        font-size: 16px; /* prevents iOS zoom */
+        padding: 0.7rem;
+    }
+    .single-item-macros {
+        grid-template-columns: repeat(3, 1fr);
+        gap: 0.4rem;
+    }
+    .single-item-macros .form-group label {
+        font-size: 0.7rem;
+    }
+}
+
+@media (max-width: 380px) {
+    .single-item-macros {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+/* Food Add Dropdown Menu */
+.food-add-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 50;
+    min-width: 200px;
+    overflow: hidden;
+}
+.food-add-menu button {
+    display: block;
+    width: 100%;
+    padding: 0.6rem 1rem;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.food-add-menu button:hover { background: #f1f5f9; }
+.food-add-menu button:not(:last-child) { border-bottom: 1px solid var(--border); }
+
+/* Entry Action Dropdown */
+.entry-actions { position: relative; display: inline-block; }
+.entry-action-menu {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    z-index: 50;
+    min-width: 120px;
+    overflow: hidden;
+}
+.entry-action-menu button {
+    display: block;
+    width: 100%;
+    padding: 0.5rem 0.75rem;
+    border: none;
+    background: none;
+    text-align: left;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+.entry-action-menu button:hover { background: #f1f5f9; }
+.entry-action-menu button:not(:last-child) { border-bottom: 1px solid var(--border); }
+
 /* Print styles */
 @media print {
     .navbar, .no-print, .date-nav, .chat-input-area { display: none !important; }
@@ -528,6 +639,7 @@ th { font-weight: 600; color: var(--text-muted); font-size: 0.8rem; text-transfo
     .chat-sidebar-toggle { display: inline-flex; }
     .chat-messages { border-left: 1px solid var(--border); border-radius: var(--radius) var(--radius) 0 0; }
     .chat-input-area { border-left: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); }
+    .chat-input-area textarea { min-height: 60px; max-height: 150px; font-size: 1rem; }
 
     /* Music */
     .music-result-card { flex-wrap: wrap; }

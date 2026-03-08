@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
-from models import db, FoodEntry
+from models import db, FoodEntry, CommonMeal, CommonMealItem, WaterEntry, CaffeineEntry
 from datetime import datetime, date
 
 food_bp = Blueprint('food', __name__)
@@ -26,7 +26,23 @@ def food_log():
         'fiber': sum(e.fiber or 0 for e in entries),
     }
 
-    return render_template('food.html', entries=entries, view_date=view_date, totals=totals)
+    # Get common meals for this user
+    common_meals = CommonMeal.query.filter_by(user_id=current_user.id)\
+        .order_by(CommonMeal.name).all()
+
+    # Get water and caffeine entries for this date
+    water_entries = WaterEntry.query.filter_by(user_id=current_user.id, date=view_date)\
+        .order_by(WaterEntry.created_at).all()
+    caffeine_entries = CaffeineEntry.query.filter_by(user_id=current_user.id, date=view_date)\
+        .order_by(CaffeineEntry.created_at).all()
+
+    water_total = sum(w.amount_ml or 0 for w in water_entries)
+    caffeine_total = sum(c.amount_mg or 0 for c in caffeine_entries)
+
+    return render_template('food.html', entries=entries, view_date=view_date, totals=totals,
+                           common_meals=common_meals, water_entries=water_entries,
+                           caffeine_entries=caffeine_entries, water_total=water_total,
+                           caffeine_total=caffeine_total)
 
 
 @food_bp.route('/add', methods=['POST'])
@@ -303,6 +319,243 @@ def calorieninjas_lookup():
             'source': 'CalorieNinjas',
         }
     })
+
+
+@food_bp.route('/save-common-meal', methods=['POST'])
+@login_required
+def save_common_meal():
+    data = request.get_json()
+    meal_name = data.get('name', '').strip()
+    entry_ids = data.get('entry_ids', [])
+    if not meal_name or not entry_ids:
+        return jsonify({'error': 'Name and entries required'}), 400
+
+    meal = CommonMeal(user_id=current_user.id, name=meal_name)
+    db.session.add(meal)
+    db.session.flush()
+
+    for eid in entry_ids:
+        entry = FoodEntry.query.get(eid)
+        if entry and entry.user_id == current_user.id:
+            item = CommonMealItem(
+                common_meal_id=meal.id,
+                food_name=entry.food_name,
+                serving_size=entry.serving_size,
+                calories=entry.calories,
+                protein=entry.protein,
+                carbs=entry.carbs,
+                fat=entry.fat,
+                fiber=entry.fiber,
+            )
+            db.session.add(item)
+
+    db.session.commit()
+    return jsonify({'ok': True, 'id': meal.id, 'name': meal.name})
+
+
+@food_bp.route('/add-common-meal', methods=['POST'])
+@login_required
+def add_common_meal():
+    data = request.get_json()
+    meal_id = data.get('common_meal_id')
+    meal_type = data.get('meal_type', 'snack')
+    date_str = data.get('date')
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+
+    common_meal = CommonMeal.query.get_or_404(meal_id)
+    if common_meal.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    for item in common_meal.items:
+        entry = FoodEntry(
+            user_id=current_user.id,
+            date=entry_date,
+            meal_type=meal_type,
+            food_name=item.food_name,
+            serving_size=item.serving_size,
+            calories=item.calories,
+            protein=item.protein,
+            carbs=item.carbs,
+            fat=item.fat,
+            fiber=item.fiber,
+        )
+        db.session.add(entry)
+
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@food_bp.route('/delete-common-meal/<int:meal_id>', methods=['POST'])
+@login_required
+def delete_common_meal(meal_id):
+    meal = CommonMeal.query.get_or_404(meal_id)
+    if meal.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    db.session.delete(meal)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@food_bp.route('/api/common-foods')
+@login_required
+def common_foods():
+    """Return the user's most frequently logged food items."""
+    from sqlalchemy import func
+    results = db.session.query(
+        FoodEntry.food_name,
+        FoodEntry.serving_size,
+        func.avg(FoodEntry.calories).label('avg_cal'),
+        func.avg(FoodEntry.protein).label('avg_protein'),
+        func.avg(FoodEntry.carbs).label('avg_carbs'),
+        func.avg(FoodEntry.fat).label('avg_fat'),
+        func.avg(FoodEntry.fiber).label('avg_fiber'),
+        func.count(FoodEntry.id).label('count'),
+    ).filter_by(user_id=current_user.id)\
+     .group_by(FoodEntry.food_name, FoodEntry.serving_size)\
+     .order_by(func.count(FoodEntry.id).desc())\
+     .limit(20).all()
+
+    return jsonify([{
+        'food_name': r.food_name,
+        'serving_size': r.serving_size,
+        'calories': round(float(r.avg_cal or 0), 1),
+        'protein': round(float(r.avg_protein or 0), 1),
+        'carbs': round(float(r.avg_carbs or 0), 1),
+        'fat': round(float(r.avg_fat or 0), 1),
+        'fiber': round(float(r.avg_fiber or 0), 1),
+        'count': r.count,
+    } for r in results])
+
+
+@food_bp.route('/add-water', methods=['POST'])
+@login_required
+def add_water():
+    data = request.form if request.form else request.get_json()
+    date_str = data.get('date')
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+
+    amount = data.get('amount_ml')
+    if not amount:
+        if request.is_json:
+            return jsonify({'error': 'Amount required'}), 400
+        return redirect(url_for('food.food_log', date=entry_date.isoformat()))
+
+    entry = WaterEntry(
+        user_id=current_user.id,
+        date=entry_date,
+        amount_ml=float(amount),
+        time=data.get('time', ''),
+        notes=data.get('notes', ''),
+    )
+    db.session.add(entry)
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({'ok': True, 'id': entry.id})
+    return redirect(url_for('food.food_log', date=entry_date.isoformat()))
+
+
+@food_bp.route('/delete-water/<int:entry_id>', methods=['POST'])
+@login_required
+def delete_water(entry_id):
+    entry = WaterEntry.query.get_or_404(entry_id)
+    if entry.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    entry_date = entry.date.isoformat()
+    db.session.delete(entry)
+    db.session.commit()
+    if request.is_json:
+        return jsonify({'ok': True})
+    return redirect(url_for('food.food_log', date=entry_date))
+
+
+@food_bp.route('/add-caffeine', methods=['POST'])
+@login_required
+def add_caffeine():
+    data = request.form if request.form else request.get_json()
+    date_str = data.get('date')
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+
+    amount = data.get('amount_mg')
+    if not amount:
+        if request.is_json:
+            return jsonify({'error': 'Amount required'}), 400
+        return redirect(url_for('food.food_log', date=entry_date.isoformat()))
+
+    entry = CaffeineEntry(
+        user_id=current_user.id,
+        date=entry_date,
+        amount_mg=float(amount),
+        source=data.get('source', ''),
+        time=data.get('time', ''),
+        notes=data.get('notes', ''),
+    )
+    db.session.add(entry)
+    db.session.commit()
+
+    if request.is_json:
+        return jsonify({'ok': True, 'id': entry.id})
+    return redirect(url_for('food.food_log', date=entry_date.isoformat()))
+
+
+@food_bp.route('/delete-caffeine/<int:entry_id>', methods=['POST'])
+@login_required
+def delete_caffeine(entry_id):
+    entry = CaffeineEntry.query.get_or_404(entry_id)
+    if entry.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    entry_date = entry.date.isoformat()
+    db.session.delete(entry)
+    db.session.commit()
+    if request.is_json:
+        return jsonify({'ok': True})
+    return redirect(url_for('food.food_log', date=entry_date))
+
+
+@food_bp.route('/api/water-summary')
+@login_required
+def water_summary():
+    """Return water intake summary for AI tools."""
+    days = request.args.get('days', 7, type=int)
+    from sqlalchemy import func
+    since = date.today() - __import__('datetime').timedelta(days=days)
+    results = db.session.query(
+        WaterEntry.date,
+        func.sum(WaterEntry.amount_ml).label('total_ml'),
+        func.count(WaterEntry.id).label('count'),
+    ).filter(
+        WaterEntry.user_id == current_user.id,
+        WaterEntry.date >= since,
+    ).group_by(WaterEntry.date).order_by(WaterEntry.date.desc()).all()
+
+    return jsonify([{
+        'date': r.date.isoformat(),
+        'total_ml': round(float(r.total_ml or 0), 1),
+        'entries': r.count,
+    } for r in results])
+
+
+@food_bp.route('/api/caffeine-summary')
+@login_required
+def caffeine_summary():
+    """Return caffeine intake summary for AI tools."""
+    days = request.args.get('days', 7, type=int)
+    from sqlalchemy import func
+    since = date.today() - __import__('datetime').timedelta(days=days)
+    results = db.session.query(
+        CaffeineEntry.date,
+        func.sum(CaffeineEntry.amount_mg).label('total_mg'),
+        func.count(CaffeineEntry.id).label('count'),
+    ).filter(
+        CaffeineEntry.user_id == current_user.id,
+        CaffeineEntry.date >= since,
+    ).group_by(CaffeineEntry.date).order_by(CaffeineEntry.date.desc()).all()
+
+    return jsonify([{
+        'date': r.date.isoformat(),
+        'total_mg': round(float(r.total_mg or 0), 1),
+        'entries': r.count,
+    } for r in results])
 
 
 def _float_or_none(val):

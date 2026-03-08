@@ -34,66 +34,190 @@
         <div class="value">{{ "%.0f"|format(totals.fiber) }}g</div>
         <div class="label">Fiber</div>
     </div>
+    <div class="stat-card">
+        <div class="value">{{ "%.0f"|format(water_total) }}ml</div>
+        <div class="label">Water</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ "%.0f"|format(caffeine_total) }}mg</div>
+        <div class="label">Caffeine</div>
+    </div>
 </div>
 
+<!-- Add Food Dropdown -->
 <div class="card">
-    <h2>Add Food</h2>
-    <form method="POST" action="{{ url_for('food.add_food') }}" id="foodForm">
-        <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
-        <div class="form-grid">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+        <h2 style="margin-bottom: 0;">Add Food</h2>
+        <div class="food-add-dropdown" style="position: relative;">
+            <button type="button" class="btn btn-primary" onclick="toggleAddMenu()" id="addMenuBtn">Add +</button>
+            <div class="food-add-menu" id="addMenu" style="display:none;">
+                <button type="button" onclick="showPanel('singleItem')">Add Single Item</button>
+                <button type="button" onclick="showPanel('commonMeal')">Add Common Meal</button>
+                <button type="button" onclick="showPanel('commonFood')">Add Common Food Item</button>
+                <button type="button" onclick="showPanel('water')">Add Water</button>
+                <button type="button" onclick="showPanel('caffeine')">Add Caffeine</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Single Item Panel: placeholder, actual form is in modal -->
+    <div id="panel-singleItem" class="add-panel" style="display:none;"></div>
+
+    <!-- Common Meal Panel -->
+    <div id="panel-commonMeal" class="add-panel" style="display:none;">
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Select a saved common meal to add all its items at once.</p>
+        {% if common_meals %}
+        <div class="form-group" style="margin-bottom: 0.75rem;">
+            <label>Meal Type</label>
+            <select id="commonMealType">
+                <option value="breakfast">Breakfast</option>
+                <option value="lunch">Lunch</option>
+                <option value="dinner">Dinner</option>
+                <option value="snack">Snack</option>
+            </select>
+        </div>
+        <div class="common-meal-list">
+            {% for cm in common_meals %}
+            <div class="common-meal-option" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem;">
+                <div style="flex: 1;">
+                    <strong>{{ cm.name }}</strong>
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">({{ cm.items | length }} items)</span>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        {% for item in cm.items[:3] %}{{ item.food_name }}{% if not loop.last %}, {% endif %}{% endfor %}{% if cm.items | length > 3 %}...{% endif %}
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" onclick="addCommonMeal({{ cm.id }})">Add</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteCommonMeal({{ cm.id }})" title="Delete">X</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-muted);">No common meals saved yet. You can save a common meal from any meal section below.</p>
+        {% endif %}
+    </div>
+
+    <!-- Common Food Item Panel -->
+    <div id="panel-commonFood" class="add-panel" style="display:none;">
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Your most frequently logged food items.</p>
+        <div class="form-grid" style="margin-bottom: 0.75rem;">
             <div class="form-group">
-                <label>Meal</label>
-                <select name="meal_type">
+                <label>Meal Type</label>
+                <select id="commonFoodMealType">
                     <option value="breakfast">Breakfast</option>
                     <option value="lunch">Lunch</option>
                     <option value="dinner">Dinner</option>
                     <option value="snack">Snack</option>
                 </select>
             </div>
-            <div class="form-group" style="grid-column: span 2;">
-                <label>Food Item</label>
-                <input type="text" name="food_name" id="foodName" placeholder="e.g. Grilled chicken breast 6oz" required>
-            </div>
-            <div class="form-group">
-                <label>Serving Size</label>
-                <input type="text" name="serving_size" placeholder="e.g. 1 cup, 6 oz">
-            </div>
-            <div class="form-group">
-                <label>Calories</label>
-                <input type="number" step="0.1" name="calories" id="cal" placeholder="kcal">
-            </div>
-            <div class="form-group">
-                <label>Protein (g)</label>
-                <input type="number" step="0.1" name="protein" id="protein" placeholder="g">
-            </div>
-            <div class="form-group">
-                <label>Carbs (g)</label>
-                <input type="number" step="0.1" name="carbs" id="carbs" placeholder="g">
-            </div>
-            <div class="form-group">
-                <label>Fat (g)</label>
-                <input type="number" step="0.1" name="fat" id="fat" placeholder="g">
-            </div>
-            <div class="form-group">
-                <label>Fiber (g)</label>
-                <input type="number" step="0.1" name="fiber" id="fiber" placeholder="g">
-            </div>
         </div>
-        <div style="margin-top: 1rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-            <button type="submit" class="btn btn-primary">Add Entry</button>
-            <button type="button" class="btn btn-success" id="usdaLookupBtn" onclick="lookupUSDA()">USDA Lookup</button>
-            <button type="button" class="btn btn-success" id="offLookupBtn" onclick="lookupOpenFoodFacts()">Open Food Facts</button>
-            <button type="button" class="btn btn-success" id="cnLookupBtn" onclick="lookupCalorieNinjas()">CalorieNinjas</button>
-            <button type="button" class="btn" id="aiLookupBtn" onclick="lookupAI()" style="background: var(--warning); color: white;">AI Estimate</button>
+        <div id="commonFoodList" style="margin-bottom: 0.75rem;">Loading...</div>
+    </div>
+
+    <!-- Water Panel -->
+    <div id="panel-water" class="add-panel" style="display:none;">
+        <form method="POST" action="{{ url_for('food.add_water') }}">
+            <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Amount (ml)</label>
+                    <input type="number" step="1" name="amount_ml" placeholder="e.g. 250" required>
+                </div>
+                <div class="form-group">
+                    <label>Time</label>
+                    <input type="time" name="time">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <input type="text" name="notes" placeholder="Optional">
+                </div>
+            </div>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary">Add Water</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="quickWater(250)">250ml</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="quickWater(500)">500ml</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="quickWater(750)">750ml</button>
+            </div>
+        </form>
+        {% if water_entries %}
+        <div style="margin-top: 1rem;">
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">Today's Water ({{ "%.0f"|format(water_total) }}ml total)</h3>
+            {% for w in water_entries %}
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.85rem;">
+                <span>{{ "%.0f"|format(w.amount_ml) }}ml</span>
+                {% if w.time %}<span style="color: var(--text-muted);">@ {{ w.time }}</span>{% endif %}
+                {% if w.notes %}<span style="color: var(--text-muted);">- {{ w.notes }}</span>{% endif %}
+                <form method="POST" action="{{ url_for('food.delete_water', entry_id=w.id) }}" style="display:inline; margin-left: auto;">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')" style="padding: 0.1rem 0.3rem; font-size: 0.7rem;">X</button>
+                </form>
+            </div>
+            {% endfor %}
         </div>
-    </form>
+        {% endif %}
+    </div>
+
+    <!-- Caffeine Panel -->
+    <div id="panel-caffeine" class="add-panel" style="display:none;">
+        <form method="POST" action="{{ url_for('food.add_caffeine') }}">
+            <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Amount (mg)</label>
+                    <input type="number" step="1" name="amount_mg" placeholder="e.g. 95" required>
+                </div>
+                <div class="form-group">
+                    <label>Source</label>
+                    <select name="source">
+                        <option value="coffee">Coffee</option>
+                        <option value="espresso">Espresso</option>
+                        <option value="tea">Tea</option>
+                        <option value="energy_drink">Energy Drink</option>
+                        <option value="soda">Soda</option>
+                        <option value="pre_workout">Pre-Workout</option>
+                        <option value="other">Other</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Time</label>
+                    <input type="time" name="time">
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <input type="text" name="notes" placeholder="Optional">
+                </div>
+            </div>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="submit" class="btn btn-primary">Add Caffeine</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="quickCaffeine(95, 'coffee')">Coffee (95mg)</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="quickCaffeine(63, 'espresso')">Espresso (63mg)</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="quickCaffeine(47, 'tea')">Tea (47mg)</button>
+            </div>
+        </form>
+        {% if caffeine_entries %}
+        <div style="margin-top: 1rem;">
+            <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">Today's Caffeine ({{ "%.0f"|format(caffeine_total) }}mg total)</h3>
+            {% for c in caffeine_entries %}
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; font-size: 0.85rem;">
+                <span>{{ "%.0f"|format(c.amount_mg) }}mg</span>
+                {% if c.source %}<span style="color: var(--text-muted);">({{ c.source }})</span>{% endif %}
+                {% if c.time %}<span style="color: var(--text-muted);">@ {{ c.time }}</span>{% endif %}
+                <form method="POST" action="{{ url_for('food.delete_caffeine', entry_id=c.id) }}" style="display:inline; margin-left: auto;">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')" style="padding: 0.1rem 0.3rem; font-size: 0.7rem;">X</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
 </div>
 
 {% for meal_type in ['breakfast', 'lunch', 'dinner', 'snack'] %}
 {% set meal_entries = entries | selectattr('meal_type', 'equalto', meal_type) | list %}
 {% if meal_entries %}
 <div class="card">
-    <h2>{{ meal_type | capitalize }}</h2>
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
+        <h2 style="margin-bottom: 0;">{{ meal_type | capitalize }}</h2>
+        <button type="button" class="btn btn-sm btn-success" onclick="saveAsCommonMeal('{{ meal_type }}', [{% for e in meal_entries %}{{ e.id }}{% if not loop.last %},{% endif %}{% endfor %}])">Save as Common Meal</button>
+    </div>
     <div class="table-wrap">
     <table>
         <thead><tr><th>Food</th><th>Serving</th><th>Cal</th><th>Protein</th><th>Carbs</th><th>Fat</th><th></th></tr></thead>
@@ -106,24 +230,25 @@
             <td>{{ e.protein or '-' }}</td>
             <td>{{ e.carbs or '-' }}</td>
             <td>{{ e.fat or '-' }}</td>
-            <td style="white-space: nowrap;">
-                <button type="button" class="btn btn-primary btn-sm"
-                    data-id="{{ e.id }}"
-                    data-meal="{{ e.meal_type or '' }}"
-                    data-name="{{ e.food_name or '' }}"
-                    data-serving="{{ e.serving_size or '' }}"
-                    data-cal="{{ e.calories or '' }}"
-                    data-protein="{{ e.protein or '' }}"
-                    data-carbs="{{ e.carbs or '' }}"
-                    data-fat="{{ e.fat or '' }}"
-                    data-fiber="{{ e.fiber or '' }}"
-                    onclick="editFromBtn(this)">Edit</button>
-                <form method="POST" action="{{ url_for('food.duplicate_food', entry_id=e.id) }}" style="display:inline;">
-                    <button type="submit" class="btn btn-success btn-sm" title="Duplicate this entry">+</button>
-                </form>
-                <form method="POST" action="{{ url_for('food.delete_food', entry_id=e.id) }}" style="display:inline;">
-                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
-                </form>
+            <td>
+                <div class="entry-actions" style="position: relative;">
+                    <button type="button" class="btn btn-sm btn-primary" onclick="toggleEntryMenu(this)">Actions</button>
+                    <div class="entry-action-menu" style="display:none;">
+                        <button type="button"
+                            data-id="{{ e.id }}"
+                            data-meal="{{ e.meal_type or '' }}"
+                            data-name="{{ e.food_name or '' }}"
+                            data-serving="{{ e.serving_size or '' }}"
+                            data-cal="{{ e.calories or '' }}"
+                            data-protein="{{ e.protein or '' }}"
+                            data-carbs="{{ e.carbs or '' }}"
+                            data-fat="{{ e.fat or '' }}"
+                            data-fiber="{{ e.fiber or '' }}"
+                            onclick="editFromBtn(this)">Edit</button>
+                        <button type="button" onclick="duplicateEntry({{ e.id }})">Duplicate</button>
+                        <button type="button" onclick="deleteEntry({{ e.id }})" style="color: var(--danger);">Delete</button>
+                    </div>
+                </div>
             </td>
         </tr>
         {% endfor %}
@@ -133,6 +258,74 @@
 </div>
 {% endif %}
 {% endfor %}
+
+<!-- Hidden forms for duplicate/delete -->
+{% for e in entries %}
+<form method="POST" action="{{ url_for('food.duplicate_food', entry_id=e.id) }}" id="dupForm-{{ e.id }}" style="display:none;"></form>
+<form method="POST" action="{{ url_for('food.delete_food', entry_id=e.id) }}" id="delForm-{{ e.id }}" style="display:none;"></form>
+{% endfor %}
+
+<!-- Add Single Item Modal -->
+<div id="singleItemModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card single-item-modal">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+            <h2 style="margin-bottom: 0;">Add Single Item</h2>
+            <button type="button" class="btn btn-sm" onclick="closeModal('singleItemModal')" style="background: var(--border); line-height: 1; padding: 0.3rem 0.6rem;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('food.add_food') }}" id="foodForm">
+            <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
+            <div class="form-group" style="margin-bottom: 0.6rem;">
+                <label>Meal</label>
+                <select name="meal_type">
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                </select>
+            </div>
+            <div class="form-group" style="margin-bottom: 0.6rem;">
+                <label>Food Item</label>
+                <input type="text" name="food_name" id="foodName" placeholder="e.g. Grilled chicken breast 6oz" required>
+            </div>
+            <div class="form-group" style="margin-bottom: 0.6rem;">
+                <label>Serving Size</label>
+                <input type="text" name="serving_size" placeholder="e.g. 1 cup, 6 oz">
+            </div>
+            <div class="single-item-macros">
+                <div class="form-group">
+                    <label>Calories</label>
+                    <input type="number" step="0.1" name="calories" id="cal" placeholder="kcal">
+                </div>
+                <div class="form-group">
+                    <label>Protein (g)</label>
+                    <input type="number" step="0.1" name="protein" id="protein" placeholder="g">
+                </div>
+                <div class="form-group">
+                    <label>Carbs (g)</label>
+                    <input type="number" step="0.1" name="carbs" id="carbs" placeholder="g">
+                </div>
+                <div class="form-group">
+                    <label>Fat (g)</label>
+                    <input type="number" step="0.1" name="fat" id="fat" placeholder="g">
+                </div>
+                <div class="form-group">
+                    <label>Fiber (g)</label>
+                    <input type="number" step="0.1" name="fiber" id="fiber" placeholder="g">
+                </div>
+            </div>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                <button type="button" class="btn btn-success btn-sm" id="usdaLookupBtn" onclick="lookupUSDA()">USDA</button>
+                <button type="button" class="btn btn-success btn-sm" id="offLookupBtn" onclick="lookupOpenFoodFacts()">Open Food Facts</button>
+                <button type="button" class="btn btn-success btn-sm" id="cnLookupBtn" onclick="lookupCalorieNinjas()">CalorieNinjas</button>
+                <button type="button" class="btn btn-sm" id="aiLookupBtn" onclick="lookupAI()" style="background: var(--warning); color: white;">AI Estimate</button>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Add Entry</button>
+                <button type="button" class="btn" onclick="closeModal('singleItemModal')" style="background: var(--border);">Cancel</button>
+            </div>
+        </form>
+    </div>
+</div>
 
 <!-- Edit Modal -->
 <div id="editModal" class="modal-overlay" style="display:none;">
@@ -216,6 +409,66 @@ if (!new URLSearchParams(window.location.search).has('date')) {
     }
 }
 
+const viewDate = '{{ view_date.isoformat() }}';
+
+// --- Add Food Dropdown Menu ---
+function toggleAddMenu() {
+    const menu = document.getElementById('addMenu');
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+// Close add menu when clicking outside
+document.addEventListener('click', function(e) {
+    const menu = document.getElementById('addMenu');
+    const btn = document.getElementById('addMenuBtn');
+    if (menu && !menu.contains(e.target) && e.target !== btn) {
+        menu.style.display = 'none';
+    }
+    // Close any open entry action menus
+    document.querySelectorAll('.entry-action-menu').forEach(m => {
+        if (!m.parentElement.contains(e.target)) m.style.display = 'none';
+    });
+});
+
+function showPanel(name) {
+    document.getElementById('addMenu').style.display = 'none';
+
+    // Single item opens as a modal popup
+    if (name === 'singleItem') {
+        document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
+        document.getElementById('singleItemModal').style.display = 'flex';
+        document.getElementById('foodName').focus();
+        return;
+    }
+
+    document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
+    document.getElementById('panel-' + name).style.display = 'block';
+
+    // Load common foods on demand
+    if (name === 'commonFood') loadCommonFoods();
+}
+
+// --- Entry Actions Dropdown ---
+function toggleEntryMenu(btn) {
+    const menu = btn.nextElementSibling;
+    // Close all other menus first
+    document.querySelectorAll('.entry-action-menu').forEach(m => {
+        if (m !== menu) m.style.display = 'none';
+    });
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function duplicateEntry(id) {
+    document.getElementById('dupForm-' + id).submit();
+}
+
+function deleteEntry(id) {
+    if (confirm('Delete this entry?')) {
+        document.getElementById('delForm-' + id).submit();
+    }
+}
+
+// --- Edit Modal ---
 function editFromBtn(btn) {
     document.getElementById('editForm').action = `/food/edit/${btn.dataset.id}`;
     document.getElementById('editMealType').value = btn.dataset.meal || 'snack';
@@ -227,6 +480,8 @@ function editFromBtn(btn) {
     document.getElementById('editFat').value = btn.dataset.fat || '';
     document.getElementById('editFiber').value = btn.dataset.fiber || '';
     document.getElementById('editModal').style.display = 'flex';
+    // Close action menu
+    document.querySelectorAll('.entry-action-menu').forEach(m => m.style.display = 'none');
 }
 
 function closeModal(id) {
@@ -240,6 +495,125 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
     });
 });
 
+// --- Common Meal Save/Add ---
+function saveAsCommonMeal(mealType, entryIds) {
+    const name = prompt(`Name this common meal (${mealType}):`);
+    if (!name) return;
+    fetch('{{ url_for("food.save_common_meal") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name: name, entry_ids: entryIds })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            alert('Common meal saved!');
+            location.reload();
+        } else {
+            alert(data.error || 'Failed to save.');
+        }
+    });
+}
+
+function addCommonMeal(mealId) {
+    const mealType = document.getElementById('commonMealType').value;
+    fetch('{{ url_for("food.add_common_meal") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ common_meal_id: mealId, meal_type: mealType, date: viewDate })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) location.reload();
+        else alert(data.error || 'Failed to add.');
+    });
+}
+
+function deleteCommonMeal(mealId) {
+    if (!confirm('Delete this common meal?')) return;
+    fetch(`/food/delete-common-meal/${mealId}`, { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) location.reload();
+    });
+}
+
+// --- Common Food Items ---
+function loadCommonFoods() {
+    const list = document.getElementById('commonFoodList');
+    list.innerHTML = 'Loading...';
+    fetch('{{ url_for("food.common_foods") }}')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.length) {
+            list.innerHTML = '<p style="color: var(--text-muted);">No food history yet. Log some food items first!</p>';
+            return;
+        }
+        list.innerHTML = data.map(f => `
+            <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem; cursor: pointer;" onclick="addCommonFoodItem(this)"
+                data-name="${f.food_name}" data-serving="${f.serving_size || ''}"
+                data-cal="${f.calories}" data-protein="${f.protein}" data-carbs="${f.carbs}"
+                data-fat="${f.fat}" data-fiber="${f.fiber}">
+                <div style="flex: 1;">
+                    <strong>${f.food_name}</strong>
+                    ${f.serving_size ? `<span style="color: var(--text-muted); font-size: 0.8rem;">(${f.serving_size})</span>` : ''}
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        ${f.calories}cal | ${f.protein}g P | ${f.carbs}g C | ${f.fat}g F
+                    </div>
+                </div>
+                <span style="color: var(--text-muted); font-size: 0.75rem;">${f.count}x</span>
+            </div>
+        `).join('');
+    });
+}
+
+function addCommonFoodItem(el) {
+    const mealType = document.getElementById('commonFoodMealType').value;
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = '{{ url_for("food.add_food") }}';
+    form.style.display = 'none';
+    const fields = {
+        date: viewDate, meal_type: mealType,
+        food_name: el.dataset.name, serving_size: el.dataset.serving,
+        calories: el.dataset.cal, protein: el.dataset.protein,
+        carbs: el.dataset.carbs, fat: el.dataset.fat, fiber: el.dataset.fiber
+    };
+    for (const [k, v] of Object.entries(fields)) {
+        const input = document.createElement('input');
+        input.type = 'hidden'; input.name = k; input.value = v;
+        form.appendChild(input);
+    }
+    document.body.appendChild(form);
+    form.submit();
+}
+
+// --- Quick Water/Caffeine ---
+function quickWater(ml) {
+    const now = new Date();
+    const time = now.toTimeString().slice(0, 5);
+    fetch('{{ url_for("food.add_water") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ date: viewDate, amount_ml: ml, time: time })
+    })
+    .then(r => r.json())
+    .then(data => { if (data.ok) location.reload(); });
+}
+
+function quickCaffeine(mg, source) {
+    const now = new Date();
+    const time = now.toTimeString().slice(0, 5);
+    fetch('{{ url_for("food.add_caffeine") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ date: viewDate, amount_mg: mg, source: source, time: time })
+    })
+    .then(r => r.json())
+    .then(data => { if (data.ok) location.reload(); });
+}
+
+// --- Copy Modal ---
 function showCopyModal() {
     document.getElementById('copyModal').style.display = 'flex';
     document.getElementById('copyBtn').disabled = true;
@@ -253,7 +627,7 @@ function showCopyModal() {
                 list.innerHTML = '<p style="color: var(--text-muted);">No previous days with food entries found.</p>';
                 return;
             }
-            const currentDate = '{{ view_date.isoformat() }}';
+            const currentDate = viewDate;
             const filtered = data.filter(d => d.date !== currentDate);
             if (!filtered.length) {
                 list.innerHTML = '<p style="color: var(--text-muted);">No other days with food entries found.</p>';
@@ -276,17 +650,13 @@ function selectCopyDate(dateStr) {
     document.getElementById('copyBtn').disabled = false;
 }
 
+// --- Nutrition Lookup ---
 function fillNutritionFields(n, source, matchDesc) {
     if (n.calories != null) document.getElementById('cal').value = n.calories;
     if (n.protein != null) document.getElementById('protein').value = n.protein;
     if (n.carbs != null) document.getElementById('carbs').value = n.carbs;
     if (n.fat != null) document.getElementById('fat').value = n.fat;
     if (n.fiber != null) document.getElementById('fiber').value = n.fiber;
-    const servingInput = document.querySelector('input[name="serving_size"]');
-    if (servingInput && !servingInput.value && matchDesc) {
-        // Don't override if user already typed something
-    }
-    // Show source as tooltip on all lookup buttons
     const msg = `Source: ${source}` + (matchDesc ? `\nMatched: ${matchDesc}` : '');
     document.querySelectorAll('#usdaLookupBtn, #offLookupBtn, #cnLookupBtn, #aiLookupBtn').forEach(b => b.title = msg);
 }
@@ -314,7 +684,7 @@ function doLookup(btn, originalText, url, food) {
         const match = data.best_match;
         if (match && match.nutrients) {
             fillNutritionFields(match.nutrients, match.source || originalText, match.description);
-            const servingInput = document.querySelector('input[name="serving_size"]');
+            const servingInput = document.querySelector('#singleItemModal input[name="serving_size"]');
             if (servingInput && !servingInput.value && match.serving_size) {
                 servingInput.value = match.serving_size;
             }
@@ -356,7 +726,8 @@ function lookupAI() {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({
             message: `Look up the nutrition for: ${food}. Return ONLY a JSON object with keys: calories, protein, carbs, fat, fiber (all numbers, per serving). No other text.`,
-            history: []
+            history: [],
+            no_save: true
         })
     })
     .then(r => r.json())

@@ -94,6 +94,51 @@ class ProgressPhoto(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class CommonMeal(db.Model):
+    __tablename__ = 'common_meals'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    items = db.relationship('CommonMealItem', backref='common_meal', lazy=True, cascade='all, delete-orphan')
+
+
+class CommonMealItem(db.Model):
+    __tablename__ = 'common_meal_items'
+    id = db.Column(db.Integer, primary_key=True)
+    common_meal_id = db.Column(db.Integer, db.ForeignKey('common_meals.id'), nullable=False)
+    food_name = db.Column(db.String(200), nullable=False)
+    serving_size = db.Column(db.String(100))
+    calories = db.Column(db.Float)
+    protein = db.Column(db.Float)
+    carbs = db.Column(db.Float)
+    fat = db.Column(db.Float)
+    fiber = db.Column(db.Float)
+
+
+class WaterEntry(db.Model):
+    __tablename__ = 'water_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    amount_ml = db.Column(db.Float, nullable=False)
+    time = db.Column(db.String(10))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class CaffeineEntry(db.Model):
+    __tablename__ = 'caffeine_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    amount_mg = db.Column(db.Float, nullable=False)
+    source = db.Column(db.String(100))
+    time = db.Column(db.String(10))
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class TrainingPlan(db.Model):
     __tablename__ = 'training_plans'
     id = db.Column(db.Integer, primary_key=True)

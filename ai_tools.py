@@ -2,7 +2,7 @@
 
 import json
 from datetime import date, timedelta
-from models import db, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan, User
+from models import db, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan, User, WaterEntry, CaffeineEntry
 
 
 TOOL_DEFINITIONS = [
@@ -229,6 +229,42 @@ TOOL_DEFINITIONS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "get_water_intake",
+        "description": "Get the user's water intake history. Shows daily totals and individual entries. Use this to analyze hydration habits.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days of history to retrieve (default 7)",
+                    "default": 7
+                },
+                "date": {
+                    "type": "string",
+                    "description": "Specific date in YYYY-MM-DD format to get detailed entries for"
+                }
+            }
+        }
+    },
+    {
+        "name": "get_caffeine_intake",
+        "description": "Get the user's caffeine intake history. Shows daily totals, sources, and timing. Use this to analyze caffeine consumption patterns.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days of history to retrieve (default 7)",
+                    "default": 7
+                },
+                "date": {
+                    "type": "string",
+                    "description": "Specific date in YYYY-MM-DD format to get detailed entries for"
+                }
+            }
+        }
     }
 ]
 
@@ -248,6 +284,8 @@ def execute_tool(tool_name, tool_input, user_id):
         "find_exercise_video": _find_exercise_video,
         "save_training_plan": _save_training_plan,
         "get_training_plan": _get_training_plan,
+        "get_water_intake": _get_water_intake,
+        "get_caffeine_intake": _get_caffeine_intake,
     }
     handler = handlers.get(tool_name)
     if not handler:
@@ -589,3 +627,106 @@ def _get_training_plan(input_data, user_id):
         })
 
     return json.dumps({"plan_name": plan_name, "days": days})
+
+
+def _get_water_intake(input_data, user_id):
+    specific_date = input_data.get("date")
+    days = input_data.get("days", 7)
+
+    if specific_date:
+        from datetime import datetime
+        log_date = datetime.strptime(specific_date, "%Y-%m-%d").date()
+        entries = WaterEntry.query.filter_by(
+            user_id=user_id, date=log_date
+        ).order_by(WaterEntry.created_at).all()
+
+        data = [{
+            "amount_ml": e.amount_ml,
+            "time": e.time,
+            "notes": e.notes,
+        } for e in entries]
+
+        total = sum(e.amount_ml or 0 for e in entries)
+        return json.dumps({
+            "date": log_date.isoformat(),
+            "total_ml": round(total, 1),
+            "entries": data,
+        })
+
+    since = date.today() - timedelta(days=days)
+    from sqlalchemy import func
+    results = db.session.query(
+        WaterEntry.date,
+        func.sum(WaterEntry.amount_ml).label('total_ml'),
+        func.count(WaterEntry.id).label('count'),
+    ).filter(
+        WaterEntry.user_id == user_id,
+        WaterEntry.date >= since,
+    ).group_by(WaterEntry.date).order_by(WaterEntry.date.desc()).all()
+
+    if not results:
+        return json.dumps({"message": "No water intake recorded yet.", "data": []})
+
+    data = [{
+        "date": r.date.isoformat(),
+        "total_ml": round(float(r.total_ml or 0), 1),
+        "entries": r.count,
+    } for r in results]
+
+    avg = sum(d["total_ml"] for d in data) / len(data) if data else 0
+    return json.dumps({
+        "summary": {"days_with_data": len(data), "avg_daily_ml": round(avg, 0)},
+        "data": data,
+    })
+
+
+def _get_caffeine_intake(input_data, user_id):
+    specific_date = input_data.get("date")
+    days = input_data.get("days", 7)
+
+    if specific_date:
+        from datetime import datetime
+        log_date = datetime.strptime(specific_date, "%Y-%m-%d").date()
+        entries = CaffeineEntry.query.filter_by(
+            user_id=user_id, date=log_date
+        ).order_by(CaffeineEntry.created_at).all()
+
+        data = [{
+            "amount_mg": e.amount_mg,
+            "source": e.source,
+            "time": e.time,
+            "notes": e.notes,
+        } for e in entries]
+
+        total = sum(e.amount_mg or 0 for e in entries)
+        return json.dumps({
+            "date": log_date.isoformat(),
+            "total_mg": round(total, 1),
+            "entries": data,
+        })
+
+    since = date.today() - timedelta(days=days)
+    from sqlalchemy import func
+    results = db.session.query(
+        CaffeineEntry.date,
+        func.sum(CaffeineEntry.amount_mg).label('total_mg'),
+        func.count(CaffeineEntry.id).label('count'),
+    ).filter(
+        CaffeineEntry.user_id == user_id,
+        CaffeineEntry.date >= since,
+    ).group_by(CaffeineEntry.date).order_by(CaffeineEntry.date.desc()).all()
+
+    if not results:
+        return json.dumps({"message": "No caffeine intake recorded yet.", "data": []})
+
+    data = [{
+        "date": r.date.isoformat(),
+        "total_mg": round(float(r.total_mg or 0), 1),
+        "entries": r.count,
+    } for r in results]
+
+    avg = sum(d["total_mg"] for d in data) / len(data) if data else 0
+    return json.dumps({
+        "summary": {"days_with_data": len(data), "avg_daily_mg": round(avg, 0)},
+        "data": data,
+    })

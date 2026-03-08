@@ -111,7 +111,20 @@
                 <td>{{ m.arm_right or '-' }}</td>
                 <td>{{ m.leg_left or '-' }}</td>
                 <td>{{ m.leg_right or '-' }}</td>
-                <td>
+                <td style="white-space: nowrap;">
+                    <button type="button" class="btn btn-primary btn-sm"
+                        data-id="{{ m.id }}"
+                        data-date="{{ m.date.isoformat() }}"
+                        data-weight="{{ m.weight or '' }}"
+                        data-belly="{{ m.belly or '' }}"
+                        data-waist="{{ m.waist or '' }}"
+                        data-chest="{{ m.chest or '' }}"
+                        data-arm_left="{{ m.arm_left or '' }}"
+                        data-arm_right="{{ m.arm_right or '' }}"
+                        data-leg_left="{{ m.leg_left or '' }}"
+                        data-leg_right="{{ m.leg_right or '' }}"
+                        data-notes="{{ m.notes or '' }}"
+                        onclick="editMetric(this)">Edit</button>
                     <form method="POST" action="{{ url_for('metrics.delete_metric', metric_id=m.id) }}" style="display:inline;">
                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
                     </form>
@@ -120,6 +133,61 @@
         {% endfor %}
         </tbody>
     </table>
+    </div>
+</div>
+
+<!-- Edit Metric Modal -->
+<div id="editMetricModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card">
+        <h2>Edit Measurements</h2>
+        <form method="POST" id="editMetricForm">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Date</label>
+                    <input type="date" name="date" id="emDate" required>
+                </div>
+                <div class="form-group">
+                    <label>Weight</label>
+                    <input type="number" step="0.1" name="weight" id="emWeight" placeholder="lbs / kg">
+                </div>
+                <div class="form-group">
+                    <label>Belly</label>
+                    <input type="number" step="0.1" name="belly" id="emBelly" placeholder="inches / cm">
+                </div>
+                <div class="form-group">
+                    <label>Waist</label>
+                    <input type="number" step="0.1" name="waist" id="emWaist" placeholder="inches / cm">
+                </div>
+                <div class="form-group">
+                    <label>Chest</label>
+                    <input type="number" step="0.1" name="chest" id="emChest" placeholder="inches / cm">
+                </div>
+                <div class="form-group">
+                    <label>Left Arm</label>
+                    <input type="number" step="0.1" name="arm_left" id="emArmLeft" placeholder="inches / cm">
+                </div>
+                <div class="form-group">
+                    <label>Right Arm</label>
+                    <input type="number" step="0.1" name="arm_right" id="emArmRight" placeholder="inches / cm">
+                </div>
+                <div class="form-group">
+                    <label>Left Leg</label>
+                    <input type="number" step="0.1" name="leg_left" id="emLegLeft" placeholder="inches / cm">
+                </div>
+                <div class="form-group">
+                    <label>Right Leg</label>
+                    <input type="number" step="0.1" name="leg_right" id="emLegRight" placeholder="inches / cm">
+                </div>
+                <div class="form-group form-full">
+                    <label>Notes</label>
+                    <input type="text" name="notes" id="emNotes" placeholder="Optional notes">
+                </div>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="button" class="btn btn-sm" onclick="document.getElementById('editMetricModal').style.display='none'" style="background: var(--border);">Cancel</button>
+            </div>
+        </form>
     </div>
 </div>
 
@@ -132,6 +200,26 @@
     const localDate = new Date().toISOString().slice(0, 10);
     document.querySelectorAll('input[type="date"]').forEach(el => { if (el.value !== localDate) el.value = localDate; });
 })();
+
+function editMetric(btn) {
+    document.getElementById('editMetricForm').action = `/metrics/edit/${btn.dataset.id}`;
+    document.getElementById('emDate').value = btn.dataset.date || '';
+    document.getElementById('emWeight').value = btn.dataset.weight || '';
+    document.getElementById('emBelly').value = btn.dataset.belly || '';
+    document.getElementById('emWaist').value = btn.dataset.waist || '';
+    document.getElementById('emChest').value = btn.dataset.chest || '';
+    document.getElementById('emArmLeft').value = btn.dataset.arm_left || '';
+    document.getElementById('emArmRight').value = btn.dataset.arm_right || '';
+    document.getElementById('emLegLeft').value = btn.dataset.leg_left || '';
+    document.getElementById('emLegRight').value = btn.dataset.leg_right || '';
+    document.getElementById('emNotes').value = btn.dataset.notes || '';
+    document.getElementById('editMetricModal').style.display = 'flex';
+}
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(m => {
+    m.addEventListener('click', function(e) { if (e.target === this) this.style.display = 'none'; });
+});
 
 fetch('{{ url_for("metrics.api_data") }}')
     .then(r => r.json())
