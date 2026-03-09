@@ -143,7 +143,8 @@
 <script>
 // Fix timezone: server is UTC, redirect to client's local date if no date param
 if (!new URLSearchParams(window.location.search).has('date')) {
-    const localDate = new Date().toISOString().slice(0, 10);
+    var _n = new Date();
+    const localDate = _n.getFullYear() + '-' + String(_n.getMonth()+1).padStart(2,'0') + '-' + String(_n.getDate()).padStart(2,'0');
     const serverDate = '{{ view_date.isoformat() }}';
     if (localDate !== serverDate) {
         window.location.replace(window.location.pathname + '?date=' + localDate);

@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from models import db, TrainingEntry, TrainingPlan
 from datetime import datetime, date
+from app import user_today
 
 training_bp = Blueprint('training', __name__)
 
@@ -15,7 +16,7 @@ def training_log():
     if selected_date:
         view_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
     else:
-        view_date = date.today()
+        view_date = user_today(current_user.tz)
 
     entries = TrainingEntry.query.filter_by(user_id=current_user.id, date=view_date)\
         .order_by(TrainingEntry.category, TrainingEntry.created_at).all()
@@ -48,7 +49,7 @@ def training_log():
 @login_required
 def add_training():
     date_str = request.form.get('date')
-    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
 
     entry = TrainingEntry(
         user_id=current_user.id,

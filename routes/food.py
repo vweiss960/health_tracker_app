@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from models import db, FoodEntry, CommonMeal, CommonMealItem, WaterEntry, CaffeineEntry
 from datetime import datetime, date
+from app import user_today
 
 food_bp = Blueprint('food', __name__)
 
@@ -13,7 +14,7 @@ def food_log():
     if selected_date:
         view_date = datetime.strptime(selected_date, '%Y-%m-%d').date()
     else:
-        view_date = date.today()
+        view_date = user_today(current_user.tz)
 
     entries = FoodEntry.query.filter_by(user_id=current_user.id, date=view_date)\
         .order_by(FoodEntry.meal_type, FoodEntry.created_at).all()
@@ -49,7 +50,7 @@ def food_log():
 @login_required
 def add_food():
     date_str = request.form.get('date')
-    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
 
     entry = FoodEntry(
         user_id=current_user.id,
@@ -360,7 +361,7 @@ def add_common_meal():
     meal_id = data.get('common_meal_id')
     meal_type = data.get('meal_type', 'snack')
     date_str = data.get('date')
-    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
 
     common_meal = CommonMeal.query.get_or_404(meal_id)
     if common_meal.user_id != current_user.id:
@@ -432,7 +433,7 @@ def common_foods():
 def add_water():
     data = request.form if request.form else request.get_json()
     date_str = data.get('date')
-    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
 
     amount = data.get('amount_ml')
     if not amount:
@@ -474,7 +475,7 @@ def delete_water(entry_id):
 def add_caffeine():
     data = request.form if request.form else request.get_json()
     date_str = data.get('date')
-    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else date.today()
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
 
     amount = data.get('amount_mg')
     if not amount:
@@ -518,7 +519,7 @@ def water_summary():
     """Return water intake summary for AI tools."""
     days = request.args.get('days', 7, type=int)
     from sqlalchemy import func
-    since = date.today() - __import__('datetime').timedelta(days=days)
+    since = user_today(current_user.tz) - __import__('datetime').timedelta(days=days)
     results = db.session.query(
         WaterEntry.date,
         func.sum(WaterEntry.amount_ml).label('total_ml'),
@@ -541,7 +542,7 @@ def caffeine_summary():
     """Return caffeine intake summary for AI tools."""
     days = request.args.get('days', 7, type=int)
     from sqlalchemy import func
-    since = date.today() - __import__('datetime').timedelta(days=days)
+    since = user_today(current_user.tz) - __import__('datetime').timedelta(days=days)
     results = db.session.query(
         CaffeineEntry.date,
         func.sum(CaffeineEntry.amount_mg).label('total_mg'),

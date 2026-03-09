@@ -6,6 +6,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from models import db, ProgressPhoto
 from werkzeug.utils import secure_filename
+from app import user_today
 
 photos_bp = Blueprint('photos', __name__)
 
@@ -18,7 +19,7 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'webp'}
 def photos_page():
     photos = ProgressPhoto.query.filter_by(user_id=current_user.id)\
         .order_by(ProgressPhoto.date.desc()).all()
-    return render_template('photos.html', photos=photos, today=date.today().isoformat())
+    return render_template('photos.html', photos=photos, today=user_today(current_user.tz).isoformat())
 
 
 def _allowed_file(filename):

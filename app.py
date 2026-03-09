@@ -1,6 +1,7 @@
 import os
-from datetime import timedelta, date
-from flask import Flask
+import re
+from datetime import timedelta, date, datetime, timezone
+from flask import Flask, request as flask_request, g
 from flask_login import LoginManager
 from models import db, User
 
@@ -19,6 +20,45 @@ login_manager.login_view = 'auth.login'
 @login_manager.user_loader
 def load_user(user_id):
     return db.session.get(User, int(user_id))
+
+
+def _resolve_today():
+    """Resolve today's date from cookie, then zoneinfo, then server clock."""
+    # 1. Trust the browser's date cookie
+    try:
+        client_date = flask_request.cookies.get('client_today', '')
+        if client_date and re.match(r'^\d{4}-\d{2}-\d{2}$', client_date):
+            return datetime.strptime(client_date, '%Y-%m-%d').date()
+    except RuntimeError:
+        pass
+
+    # 2. Fall back to zoneinfo
+    try:
+        from flask_login import current_user as cu
+        if cu and cu.is_authenticated and cu.tz:
+            from zoneinfo import ZoneInfo
+            return datetime.now(ZoneInfo(cu.tz)).date()
+    except Exception:
+        pass
+
+    # 3. Last resort
+    return date.today()
+
+
+def user_today(tz_name=None):
+    """Return today's date in the user's timezone. Uses cached g.today if available."""
+    try:
+        if hasattr(g, 'client_date'):
+            return g.client_date
+    except RuntimeError:
+        pass
+    return _resolve_today()
+
+
+@app.before_request
+def _set_client_date():
+    """Parse the client_today cookie once per request and cache in g."""
+    g.client_date = _resolve_today()
 
 
 # Register blueprints
@@ -40,9 +80,11 @@ app.register_blueprint(settings_bp, url_prefix='/settings')
 app.register_blueprint(photos_bp, url_prefix='/photos')
 app.register_blueprint(resources_bp, url_prefix='/resources')
 
+
 @app.context_processor
 def inject_helpers():
-    return {'import_timedelta': timedelta, 'today': date.today().isoformat()}
+    today_val = g.client_date.isoformat() if hasattr(g, 'client_date') else date.today().isoformat()
+    return {'import_timedelta': timedelta, 'today': today_val, 'server_today': today_val}
 
 def _migrate_db():
     """Add missing columns to existing tables for schema upgrades."""
@@ -65,6 +107,7 @@ def _migrate_db():
         ('chat_messages', 'conversation_id', 'INTEGER', None),
         ('users', 'calorieninjas_api_key', 'VARCHAR(256)', None),
         ('users', 'youtube_api_key', 'VARCHAR(256)', None),
+        ('users', 'tz', 'VARCHAR(64)', None),
     ]
     for table, column, col_type, default in migrations:
         cursor.execute(f"PRAGMA table_info({table})")

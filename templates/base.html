@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Health Tracker{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script>
+    // Set client date cookie ASAP on every page (even login) so server knows the local date
+    (function(){
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = String(now.getMonth() + 1).padStart(2, '0');
+        var d = String(now.getDate()).padStart(2, '0');
+        document.cookie = 'client_today=' + y + '-' + m + '-' + d + ';path=/;SameSite=Lax';
+    })();
+    </script>
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -35,6 +45,28 @@
         {% block content %}{% endblock %}
     </div>
 
+    {% if current_user.is_authenticated %}
+    <script>
+    (function(){
+        // Auto-detect timezone
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        if (tz && tz !== '{{ current_user.tz or "" }}') {
+            fetch('/set-timezone', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({timezone: tz})
+            }).then(function(){ location.reload(); });
+        }
+        // If server rendered with wrong date (no cookie on first request), reload once
+        else {
+            var cm = document.cookie.match(/client_today=([^;]+)/);
+            if (cm && cm[1] !== '{{ server_today }}') {
+                location.reload();
+            }
+        }
+    })();
+    </script>
+    {% endif %}
     {% block scripts %}{% endblock %}
 </body>
 </html>

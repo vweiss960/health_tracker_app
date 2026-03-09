@@ -197,7 +197,8 @@
 <script>
 // Fix date inputs to use client's local date instead of server UTC
 (function() {
-    const localDate = new Date().toISOString().slice(0, 10);
+    var _n = new Date();
+    const localDate = _n.getFullYear() + '-' + String(_n.getMonth()+1).padStart(2,'0') + '-' + String(_n.getDate()).padStart(2,'0');
     document.querySelectorAll('input[type="date"]').forEach(el => { if (el.value !== localDate) el.value = localDate; });
 })();
 

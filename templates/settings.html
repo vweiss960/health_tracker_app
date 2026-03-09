@@ -21,6 +21,13 @@
                 </select>
             </div>
             <div class="form-group">
+                <label>Timezone</label>
+                <select name="tz" id="tz-select">
+                    <option value="">Auto-detect</option>
+                </select>
+                <small style="color: var(--text-muted);">Current: {{ current_user.tz or 'not set' }}</small>
+            </div>
+            <div class="form-group">
                 <label>Target Weight</label>
                 <input type="number" step="0.1" name="target_weight" value="{{ current_user.target_weight or '' }}" placeholder="lbs / kg">
             </div>
@@ -87,4 +94,27 @@
         <button type="submit" class="btn btn-primary" style="margin-top: 1.5rem;">Save Settings</button>
     </form>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){
+    var sel = document.getElementById('tz-select');
+    var saved = '{{ current_user.tz or "" }}';
+    var browserTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    var zones = Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : [];
+    if (!zones.length) {
+        zones = [browserTz];
+    }
+    zones.forEach(function(tz){
+        var opt = document.createElement('option');
+        opt.value = tz;
+        opt.textContent = tz.replace(/_/g, ' ');
+        if (tz === saved) opt.selected = true;
+        sel.appendChild(opt);
+    });
+    if (!saved && browserTz) {
+        sel.value = browserTz;
+    }
+})();
+</script>
 {% endblock %}

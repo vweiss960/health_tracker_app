@@ -1,8 +1,33 @@
 """AI tools that give the chat agent access to user health data."""
 
 import json
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime, timezone
 from models import db, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan, User, WaterEntry, CaffeineEntry
+
+
+def _user_today(user_id):
+    """Return today's date in the user's timezone."""
+    import re
+    from flask import request as flask_request
+
+    # 1. Trust the browser's date cookie
+    try:
+        client_date = flask_request.cookies.get('client_today', '')
+        if client_date and re.match(r'^\d{4}-\d{2}-\d{2}$', client_date):
+            return datetime.strptime(client_date, '%Y-%m-%d').date()
+    except RuntimeError:
+        pass
+
+    # 2. Fall back to zoneinfo
+    user = db.session.get(User, user_id)
+    if user and user.tz:
+        try:
+            from zoneinfo import ZoneInfo
+            return datetime.now(ZoneInfo(user.tz)).date()
+        except Exception:
+            pass
+
+    return date.today()
 
 
 TOOL_DEFINITIONS = [
@@ -36,7 +61,7 @@ TOOL_DEFINITIONS = [
     },
     {
         "name": "get_food_log",
-        "description": "Get detailed food log entries for a specific date, showing individual meals and items.",
+        "description": "Get detailed food log entries for a specific date, showing every individual food item grouped by meal type (breakfast, lunch, dinner, snack). Includes each item's name, serving size, calories, protein, carbs, fat, fiber, notes, and entry ID. Also returns daily totals.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -295,7 +320,7 @@ def execute_tool(tool_name, tool_input, user_id):
 
 def _get_body_metrics_trend(input_data, user_id):
     days = input_data.get("days", 30)
-    since = date.today() - timedelta(days=days)
+    since = _user_today(user_id) - timedelta(days=days)
     metrics = BodyMetric.query.filter(
         BodyMetric.user_id == user_id,
         BodyMetric.date >= since
@@ -330,7 +355,7 @@ def _get_body_metrics_trend(input_data, user_id):
 
 def _get_nutrition_summary(input_data, user_id):
     days = input_data.get("days", 7)
-    since = date.today() - timedelta(days=days)
+    since = _user_today(user_id) - timedelta(days=days)
 
     from sqlalchemy import func
     results = db.session.query(
@@ -347,7 +372,7 @@ def _get_nutrition_summary(input_data, user_id):
     ).group_by(FoodEntry.date).order_by(FoodEntry.date.desc()).all()
 
     if not results:
-        return json.dumps({"message": "No food entries recorded yet.", "data": []})
+        return json.dumps({"message": f"No food entries recorded in the last {days} days.", "data": []})
 
     data = [{
         "date": r.date.isoformat(),
@@ -360,26 +385,32 @@ def _get_nutrition_summary(input_data, user_id):
     } for r in results]
 
     avg_cal = sum(d["calories"] for d in data) / len(data) if data else 0
+    total_items = sum(d["items_logged"] for d in data)
     summary = {
         "days_with_data": len(data),
+        "total_items_logged": total_items,
         "avg_daily_calories": round(avg_cal, 0),
     }
-    return json.dumps({"summary": summary, "data": data})
+    return json.dumps({
+        "message": f"Found food entries across {len(data)} days ({total_items} total items) in the last {days} days.",
+        "summary": summary,
+        "data": data,
+    })
 
 
 def _get_food_log(input_data, user_id):
     date_str = input_data.get("date")
     if date_str:
-        from datetime import datetime
         log_date = datetime.strptime(date_str, "%Y-%m-%d").date()
     else:
-        log_date = date.today()
+        log_date = _user_today(user_id)
 
     entries = FoodEntry.query.filter_by(
         user_id=user_id, date=log_date
     ).order_by(FoodEntry.meal_type, FoodEntry.created_at).all()
 
     data = [{
+        "id": e.id,
         "meal_type": e.meal_type,
         "food_name": e.food_name,
         "serving_size": e.serving_size,
@@ -388,14 +419,47 @@ def _get_food_log(input_data, user_id):
         "carbs": e.carbs,
         "fat": e.fat,
         "fiber": e.fiber,
+        "notes": e.notes,
     } for e in entries]
 
-    return json.dumps({"date": log_date.isoformat(), "entries": data})
+    # Group by meal type for easier reading
+    meals = {}
+    for entry in data:
+        mt = entry["meal_type"] or "other"
+        if mt not in meals:
+            meals[mt] = []
+        meals[mt].append(entry)
+
+    totals = {
+        "calories": round(sum(e.calories or 0 for e in entries), 1),
+        "protein": round(sum(e.protein or 0 for e in entries), 1),
+        "carbs": round(sum(e.carbs or 0 for e in entries), 1),
+        "fat": round(sum(e.fat or 0 for e in entries), 1),
+        "fiber": round(sum(e.fiber or 0 for e in entries), 1),
+        "total_items": len(entries),
+    }
+
+    if not entries:
+        return json.dumps({
+            "date": log_date.isoformat(),
+            "message": f"No food entries found for {log_date.isoformat()}.",
+            "totals": totals,
+            "meals": {},
+            "entries": [],
+        })
+
+    return json.dumps({
+        "date": log_date.isoformat(),
+        "message": f"Found {len(entries)} food entries for {log_date.isoformat()}.",
+        "totals": totals,
+        "meals": meals,
+        "entries": data,
+    })
 
 
 def _get_training_history(input_data, user_id):
     days = input_data.get("days", 14)
-    since = date.today() - timedelta(days=days)
+    since = _user_today(user_id) - timedelta(days=days)
 
     entries = TrainingEntry.query.filter(
         TrainingEntry.user_id == user_id,
@@ -634,7 +698,6 @@ def _get_water_intake(input_data, user_id):
     days = input_data.get("days", 7)
 
     if specific_date:
-        from datetime import datetime
         log_date = datetime.strptime(specific_date, "%Y-%m-%d").date()
         entries = WaterEntry.query.filter_by(
             user_id=user_id, date=log_date
@@ -653,7 +716,7 @@ def _get_water_intake(input_data, user_id):
             "entries": data,
         })
 
-    since = date.today() - timedelta(days=days)
+    since = _user_today(user_id) - timedelta(days=days)
     from sqlalchemy import func
     results = db.session.query(
         WaterEntry.date,
@@ -685,7 +748,6 @@ def _get_caffeine_intake(input_data, user_id):
     days = input_data.get("days", 7)
 
     if specific_date:
-        from datetime import datetime
         log_date = datetime.strptime(specific_date, "%Y-%m-%d").date()
         entries = CaffeineEntry.query.filter_by(
             user_id=user_id, date=log_date
@@ -705,7 +767,7 @@ def _get_caffeine_intake(input_data, user_id):
             "entries": data,
         })
 
-    since = date.today() - timedelta(days=days)
+    since = _user_today(user_id) - timedelta(days=days)
     from sqlalchemy import func
     results = db.session.query(
         CaffeineEntry.date,

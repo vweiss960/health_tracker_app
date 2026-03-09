@@ -20,6 +20,7 @@ class User(UserMixin, db.Model):
     ai_api_key = db.Column(db.String(256))
     calorieninjas_api_key = db.Column(db.String(256))
     youtube_api_key = db.Column(db.String(256))
+    tz = db.Column(db.String(64))  # IANA timezone, e.g. 'America/New_York'
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     metrics = db.relationship('BodyMetric', backref='user', lazy=True, cascade='all, delete-orphan')

@@ -15,6 +15,16 @@ def settings():
         current_user.health_goals = request.form.get('health_goals', '').strip() or None
         current_user.fitness_level = request.form.get('fitness_level', '').strip() or None
         current_user.dietary_restrictions = request.form.get('dietary_restrictions', '').strip() or None
+        tz_val = request.form.get('tz', '').strip()
+        if tz_val:
+            try:
+                from zoneinfo import ZoneInfo
+                ZoneInfo(tz_val)
+                current_user.tz = tz_val
+            except Exception:
+                pass
+        else:
+            current_user.tz = None
         current_user.ai_provider = request.form.get('ai_provider', 'claude')
         api_key = request.form.get('ai_api_key', '').strip()
         if api_key:

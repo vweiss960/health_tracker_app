@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, request, jsonify, redirect, url_fo
 from flask_login import login_required, current_user
 from models import db, BodyMetric
 from datetime import datetime
+from app import user_today
 
 metrics_bp = Blueprint('metrics', __name__)
 
@@ -18,7 +19,7 @@ def dashboard():
 @login_required
 def add_metric():
     date_str = request.form.get('date')
-    date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else datetime.utcnow().date()
+    date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
 
     metric = BodyMetric(
         user_id=current_user.id,

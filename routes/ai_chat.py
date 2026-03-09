@@ -66,10 +66,15 @@ def delete_conversation(conv_id):
     return jsonify({'ok': True})
 
 
-def _get_system_prompt():
+def _get_system_prompt(user_tz=None):
+    from app import user_today
+    today = user_today(user_tz).isoformat()
     return (
         "You are a knowledgeable, conversational health and fitness coach. You have access to the "
         "user's health tracking data through tools. You are collaborative and thorough.\n\n"
+        f"TODAY'S DATE: {today}. All date-based tools default to this date. If the user refers to "
+        "'today', 'yesterday', or other relative dates, calculate the correct YYYY-MM-DD date "
+        "based on this reference point and pass it explicitly to the tool.\n\n"
         "IMPORTANT BEHAVIOR - ASK QUESTIONS FIRST:\n"
         "- Before creating any plan (meal, workout, etc.), ask clarifying questions to understand "
         "the user's needs. Ask about their experience level, preferences, available equipment, "
@@ -115,7 +120,7 @@ def send_message():
 
     # If no_save, do a quick AI call without creating conversation/messages
     if no_save:
-        system_prompt = _get_system_prompt()
+        system_prompt = _get_system_prompt(current_user.tz)
         messages = [{"role": "user", "content": user_message}]
         provider = current_user.ai_provider or 'claude'
         try:
@@ -157,7 +162,7 @@ def send_message():
     ).order_by(ChatMessage.created_at.desc()).limit(50).all()
     db_messages.reverse()
 
-    system_prompt = _get_system_prompt()
+    system_prompt = _get_system_prompt(current_user.tz)
     messages = [{"role": m.role, "content": m.content} for m in db_messages]
     provider = current_user.ai_provider or 'claude'
 
@@ -220,7 +225,7 @@ def stream_message():
     ).order_by(ChatMessage.created_at.desc()).limit(50).all()
     db_messages.reverse()
 
-    system_prompt = _get_system_prompt()
+    system_prompt = _get_system_prompt(current_user.tz)
     messages = [{"role": m.role, "content": m.content} for m in db_messages]
     provider = current_user.ai_provider or 'claude'
 
