@@ -14,7 +14,7 @@ def resources_page():
 @resources_bp.route('/api/music-search', methods=['POST'])
 @login_required
 def music_search():
-    """Use AI to generate YouTube music suggestions, then find real videos."""
+    """Use AI to generate YouTube music suggestions, then find real playlists."""
     data = request.get_json() or {}
     prompt = data.get('prompt', '').strip()
     if not prompt:
@@ -31,16 +31,63 @@ def music_search():
     if not suggestions:
         return jsonify({'error': 'AI failed to generate suggestions. Check your AI API key.'}), 502
 
-    # Step 2: Resolve to real YouTube video/playlist IDs
+    # Step 2: Resolve to real YouTube playlist IDs
     if yt_key:
         results = _resolve_with_youtube_api(yt_key, suggestions)
     else:
         results = _resolve_with_ytmusic(suggestions)
 
     if not results:
-        return jsonify({'error': 'Could not find playable videos. Try a different description.'}), 404
+        return jsonify({'error': 'Could not find playable playlists. Try a different description.'}), 404
+
+    # Step 3: With API key, enrich with playlist details and sort by popularity
+    if yt_key:
+        results = _enrich_and_sort_playlists(yt_key, results)
 
     return jsonify({'search_query': prompt, 'results': results})
+
+
+@resources_bp.route('/api/playlist-details')
+@login_required
+def playlist_details():
+    """Fetch tracklist for a playlist. Requires YouTube API key."""
+    playlist_id = request.args.get('id', '').strip()
+    if not playlist_id:
+        return jsonify({'error': 'No playlist ID'}), 400
+
+    yt_key = current_user.youtube_api_key
+    if not yt_key:
+        return jsonify({'error': 'YouTube API key required for tracklist'}), 400
+
+    tracks = _fetch_playlist_tracks(yt_key, playlist_id)
+    return jsonify({'playlist_id': playlist_id, 'tracks': tracks})
+
+
+@resources_bp.route('/api/more-like-this', methods=['POST'])
+@login_required
+def more_like_this():
+    """Find similar playlists based on a query."""
+    data = request.get_json() or {}
+    query = data.get('query', '').strip()
+    title = data.get('title', '').strip()
+    if not query and not title:
+        return jsonify({'error': 'No query provided'}), 400
+
+    search_term = query or title
+    yt_key = current_user.youtube_api_key
+
+    if yt_key:
+        results = _more_like_this_api(yt_key, search_term)
+    else:
+        results = _more_like_this_ytmusic(search_term)
+
+    if not results:
+        return jsonify({'error': 'No similar playlists found'}), 404
+
+    if yt_key:
+        results = _enrich_and_sort_playlists(yt_key, results)
+
+    return jsonify({'results': results})
 
 
 def _ai_music_suggestions(provider, api_key, user_prompt):
@@ -52,9 +99,8 @@ def _ai_music_suggestions(provider, api_key, user_prompt):
         "Return a JSON array of 6 music suggestions. Each item should be an object with:\n"
         '- "title": A descriptive title for this suggestion\n'
         '- "query": An optimized YouTube Music search query to find this (be specific with genres, artists, descriptors)\n'
-        '- "search_type": Either "songs" or "playlists" — use "playlists" for mixes/compilations, "songs" for individual tracks\n'
         '- "description": A one-line description of why this fits\n\n'
-        "Return ONLY valid JSON array, no other text. Include a mix of individual songs and playlists. "
+        "Return ONLY valid JSON array, no other text. Focus on playlists, mixes, and compilations. "
         "Prefer well-known artists and popular playlists/mixes."
     )
     messages = [{"role": "user", "content": user_prompt}]
@@ -100,49 +146,29 @@ def _resolve_with_ytmusic(suggestions):
 
     def resolve(s):
         query = s.get('query', '')
-        search_type = s.get('search_type', 'songs')
         if not query:
             return _search_fallback(s)
 
-        # Validate search_type
-        if search_type not in ('songs', 'playlists'):
-            search_type = 'songs'
-
         try:
-            results = ytmusic.search(query, filter=search_type, limit=3)
+            results = ytmusic.search(query, filter='playlists', limit=3)
             if not results:
                 return _search_fallback(s)
 
-            if search_type == 'playlists':
-                for item in results:
-                    playlist_id = item.get('browseId', '')
-                    # browseId format is VL + playlistId, strip VL prefix
-                    if playlist_id.startswith('VL'):
-                        playlist_id = playlist_id[2:]
-                    if playlist_id:
-                        return {
-                            'type': 'playlist',
-                            'id': playlist_id,
-                            'title': item.get('title', '') or s.get('title', query),
-                            'channel': item.get('author', ''),
-                            'thumbnail': _best_thumbnail(item),
-                            'description': s.get('description', ''),
-                            'query': query,
-                        }
-            else:
-                for item in results:
-                    video_id = item.get('videoId', '')
-                    if video_id:
-                        artists = ', '.join(a.get('name', '') for a in item.get('artists', []))
-                        return {
-                            'type': 'video',
-                            'id': video_id,
-                            'title': item.get('title', '') or s.get('title', query),
-                            'channel': artists,
-                            'thumbnail': _best_thumbnail(item),
-                            'description': s.get('description', ''),
-                            'query': query,
-                        }
+            for item in results:
+                playlist_id = item.get('browseId', '')
+                # browseId format is VL + playlistId, strip VL prefix
+                if playlist_id.startswith('VL'):
+                    playlist_id = playlist_id[2:]
+                if playlist_id:
+                    return {
+                        'type': 'playlist',
+                        'id': playlist_id,
+                        'title': item.get('title', '') or s.get('title', query),
+                        'channel': item.get('author', ''),
+                        'thumbnail': _best_thumbnail(item),
+                        'description': s.get('description', ''),
+                        'query': query,
+                    }
         except Exception:
             pass
 
@@ -163,7 +189,7 @@ def _best_thumbnail(item):
 
 
 def _resolve_with_youtube_api(api_key, suggestions):
-    """Use YouTube Data API to search and get real video IDs (parallel)."""
+    """Use YouTube Data API to search and get real playlist IDs (parallel)."""
     import requests
     from concurrent.futures import ThreadPoolExecutor
 
@@ -175,9 +201,8 @@ def _resolve_with_youtube_api(api_key, suggestions):
             resp = requests.get('https://www.googleapis.com/youtube/v3/search', params={
                 'part': 'snippet',
                 'q': query,
-                'type': 'video',
+                'type': 'playlist',
                 'maxResults': 1,
-                'videoEmbeddable': 'true',
                 'key': api_key,
             }, timeout=5)
             resp.raise_for_status()
@@ -185,8 +210,8 @@ def _resolve_with_youtube_api(api_key, suggestions):
             if items:
                 item = items[0]
                 return {
-                    'type': 'video',
-                    'id': item['id']['videoId'],
+                    'type': 'playlist',
+                    'id': item['id']['playlistId'],
                     'title': item['snippet']['title'],
                     'channel': item['snippet']['channelTitle'],
                     'thumbnail': item['snippet']['thumbnails'].get('medium', {}).get('url', ''),
@@ -199,6 +224,119 @@ def _resolve_with_youtube_api(api_key, suggestions):
 
     with ThreadPoolExecutor(max_workers=6) as executor:
         results = list(executor.map(resolve, suggestions))
+
+    return results
+
+
+def _enrich_and_sort_playlists(api_key, results):
+    """Fetch playlist metadata (item count) and sort by popularity. API key required."""
+    import requests
+
+    playlist_ids = [r['id'] for r in results if r.get('id') and r.get('type') == 'playlist']
+    if not playlist_ids:
+        return results
+
+    try:
+        resp = requests.get('https://www.googleapis.com/youtube/v3/playlists', params={
+            'part': 'contentDetails',
+            'id': ','.join(playlist_ids),
+            'key': api_key,
+        }, timeout=5)
+        resp.raise_for_status()
+        items = resp.json().get('items', [])
+        details = {item['id']: item.get('contentDetails', {}) for item in items}
+    except Exception:
+        return results
+
+    for r in results:
+        pid = r.get('id', '')
+        if pid in details:
+            r['track_count'] = details[pid].get('itemCount', 0)
+
+    # Sort: playlists with more tracks first (proxy for popularity), fallbacks last
+    results.sort(key=lambda r: r.get('track_count', 0), reverse=True)
+    return results
+
+
+def _fetch_playlist_tracks(api_key, playlist_id, max_tracks=25):
+    """Fetch track titles from a playlist via YouTube Data API."""
+    import requests
+
+    tracks = []
+    try:
+        resp = requests.get('https://www.googleapis.com/youtube/v3/playlistItems', params={
+            'part': 'snippet',
+            'playlistId': playlist_id,
+            'maxResults': max_tracks,
+            'key': api_key,
+        }, timeout=5)
+        resp.raise_for_status()
+        for item in resp.json().get('items', []):
+            snippet = item.get('snippet', {})
+            tracks.append({
+                'title': snippet.get('title', ''),
+                'channel': snippet.get('videoOwnerChannelTitle', ''),
+                'position': snippet.get('position', 0),
+            })
+    except Exception:
+        pass
+
+    return tracks
+
+
+def _more_like_this_api(api_key, search_term):
+    """Find similar playlists using YouTube Data API."""
+    import requests
+
+    try:
+        resp = requests.get('https://www.googleapis.com/youtube/v3/search', params={
+            'part': 'snippet',
+            'q': search_term,
+            'type': 'playlist',
+            'maxResults': 6,
+            'key': api_key,
+        }, timeout=5)
+        resp.raise_for_status()
+        results = []
+        for item in resp.json().get('items', []):
+            results.append({
+                'type': 'playlist',
+                'id': item['id']['playlistId'],
+                'title': item['snippet']['title'],
+                'channel': item['snippet']['channelTitle'],
+                'thumbnail': item['snippet']['thumbnails'].get('medium', {}).get('url', ''),
+                'description': '',
+                'query': search_term,
+            })
+        return results
+    except Exception:
+        return []
+
+
+def _more_like_this_ytmusic(search_term):
+    """Find similar playlists using ytmusicapi (no API key)."""
+    from ytmusicapi import YTMusic
+
+    ytmusic = YTMusic()
+    results = []
+    try:
+        items = ytmusic.search(search_term, filter='playlists', limit=6)
+        for item in items:
+            playlist_id = item.get('browseId', '')
+            if playlist_id.startswith('VL'):
+                playlist_id = playlist_id[2:]
+            if playlist_id:
+                results.append({
+                    'type': 'playlist',
+                    'id': playlist_id,
+                    'title': item.get('title', ''),
+                    'channel': item.get('author', ''),
+                    'thumbnail': _best_thumbnail(item),
+                    'description': '',
+                    'query': search_term,
+                })
+    except Exception:
+        pass
 
     return results
 

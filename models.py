@@ -29,6 +29,7 @@ class User(UserMixin, db.Model):
     chat_conversations = db.relationship('ChatConversation', backref='user', lazy=True, cascade='all, delete-orphan')
     chat_messages = db.relationship('ChatMessage', backref='user', lazy=True, cascade='all, delete-orphan')
     training_plans = db.relationship('TrainingPlan', backref='user', lazy=True, cascade='all, delete-orphan')
+    meal_plans = db.relationship('MealPlan', backref='user', lazy=True, cascade='all, delete-orphan')
     progress_photos = db.relationship('ProgressPhoto', backref='user', lazy=True, cascade='all, delete-orphan')
 
 
@@ -151,6 +152,26 @@ class TrainingPlan(db.Model):
     sets = db.Column(db.Integer)
     reps = db.Column(db.String(50))  # string to allow ranges like "8-12"
     rest_seconds = db.Column(db.Integer)
+    notes = db.Column(db.Text)
+    order_index = db.Column(db.Integer, default=0)
+    active = db.Column(db.Boolean, default=True)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class MealPlan(db.Model):
+    __tablename__ = 'meal_plans'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(200), nullable=False)
+    day_of_week = db.Column(db.String(20), nullable=False)  # monday, tuesday, etc.
+    meal_type = db.Column(db.String(20), nullable=False)  # breakfast, lunch, dinner, snack
+    meal_name = db.Column(db.String(200), nullable=False)
+    serving_size = db.Column(db.String(100))
+    calories = db.Column(db.Float)
+    protein = db.Column(db.Float)
+    carbs = db.Column(db.Float)
+    fat = db.Column(db.Float)
+    fiber = db.Column(db.Float)
     notes = db.Column(db.Text)
     order_index = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)

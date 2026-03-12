@@ -45,6 +45,66 @@ body {
 }
 .nav-links a:hover, .nav-links a.active { background: rgba(255,255,255,0.2); }
 
+/* Nav dropdowns */
+.nav-dropdown { position: relative; }
+.nav-dropdown > .nav-dd-toggle {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    font-size: 0.9rem;
+    transition: background 0.2s;
+    cursor: pointer;
+    display: inline-block;
+}
+.nav-dropdown.active > .nav-dd-toggle,
+.nav-dropdown > .nav-dd-toggle:hover { background: rgba(255,255,255,0.2); }
+.nav-dd-menu {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    background: var(--primary-dark, #3730a3);
+    border-radius: var(--radius);
+    min-width: 140px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    z-index: 200;
+    padding: 0.25rem 0;
+    margin-top: 0.2rem;
+}
+.nav-dropdown.open > .nav-dd-menu { display: block; }
+.nav-dd-menu a {
+    display: block;
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    white-space: nowrap;
+}
+.nav-dd-menu a:hover, .nav-dd-menu a.active { background: rgba(255,255,255,0.15); }
+
+/* Motivation cards */
+.motivation-card {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 0.5rem;
+    transition: background 0.15s, border-color 0.15s;
+    cursor: pointer;
+    align-items: flex-start;
+}
+.motivation-card:hover { background: #f1f5f9; border-color: var(--primary); }
+.motivation-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: var(--radius);
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
 /* Layout */
 .container { max-width: 1100px; margin: 0 auto; padding: 1.5rem; }
 
@@ -592,6 +652,14 @@ th { font-weight: 600; color: var(--text-muted); font-size: 0.8rem; text-transfo
         z-index: 150;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     }
+    .nav-dd-menu {
+        position: static;
+        box-shadow: none;
+        margin-top: 0;
+        padding-left: 1rem;
+        background: transparent;
+    }
+    .nav-dropdown.open > .nav-dd-menu { display: block; }
     .nav-links.open { display: flex; }
     .nav-links a {
         padding: 0.6rem 1rem;

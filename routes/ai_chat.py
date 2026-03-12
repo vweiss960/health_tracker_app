@@ -100,6 +100,12 @@ def _get_system_prompt(user_tz=None):
         "- When looking up food nutrition, provide detailed macro breakdowns.\n"
         "- When creating plans, be specific with portions, exercises, sets, and reps.\n"
         "- When the user confirms a training plan, use save_training_plan to save it.\n"
+        "- When you generate a meal plan, IMMEDIATELY save it using save_meal_plan — do NOT wait "
+        "for the user to confirm. Include estimated macros (calories, protein, carbs, fat) for each "
+        "meal. The user can view and modify it on the Meal Plan page. If they want changes, update "
+        "and re-save it.\n"
+        "- When the user asks about their current meal plan, or wants to modify it, use get_meal_plan "
+        "first to see what they currently have before making changes.\n"
         "- Be encouraging but honest. Base recommendations on evidence-based health practices."
     )
 
@@ -285,7 +291,7 @@ def _stream_claude(api_key, system_prompt, messages, user_id):
 
         with client.messages.stream(
             model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            max_tokens=16384,
             system=system_prompt,
             tools=tools,
             messages=messages,
@@ -342,7 +348,7 @@ def _stream_openai(api_key, system_prompt, messages, user_id):
             model="gpt-4o",
             messages=oai_messages,
             tools=tools,
-            max_tokens=4096,
+            max_tokens=16384,
             stream=True,
         )
 
@@ -412,7 +418,7 @@ def _call_claude(api_key, system_prompt, messages):
 
     response = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=4096,
+        max_tokens=16384,
         system=system_prompt,
         tools=tools,
         messages=messages,
@@ -434,7 +440,7 @@ def _call_claude(api_key, system_prompt, messages):
 
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            max_tokens=16384,
             system=system_prompt,
             tools=tools,
             messages=messages,
@@ -460,7 +466,7 @@ def _call_openai(api_key, system_prompt, messages):
         model="gpt-4o",
         messages=oai_messages,
         tools=tools,
-        max_tokens=4096,
+        max_tokens=16384,
     )
 
     msg = response.choices[0].message
@@ -480,7 +486,7 @@ def _call_openai(api_key, system_prompt, messages):
             model="gpt-4o",
             messages=oai_messages,
             tools=tools,
-            max_tokens=4096,
+            max_tokens=16384,
         )
         msg = response.choices[0].message
 

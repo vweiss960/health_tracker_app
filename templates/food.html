@@ -213,10 +213,20 @@
 {% for meal_type in ['breakfast', 'lunch', 'dinner', 'snack'] %}
 {% set meal_entries = entries | selectattr('meal_type', 'equalto', meal_type) | list %}
 {% if meal_entries %}
+{% set meal_cal = meal_entries | map(attribute='calories') | select('number') | sum %}
+{% set meal_protein = meal_entries | map(attribute='protein') | select('number') | sum %}
+{% set meal_carbs = meal_entries | map(attribute='carbs') | select('number') | sum %}
+{% set meal_fat = meal_entries | map(attribute='fat') | select('number') | sum %}
 <div class="card">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
         <h2 style="margin-bottom: 0;">{{ meal_type | capitalize }}</h2>
         <button type="button" class="btn btn-sm btn-success" onclick="saveAsCommonMeal('{{ meal_type }}', [{% for e in meal_entries %}{{ e.id }}{% if not loop.last %},{% endif %}{% endfor %}])">Save as Common Meal</button>
+    </div>
+    <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
+        <span><strong>{{ "%.0f"|format(meal_cal) }}</strong> cal</span>
+        <span><strong>{{ "%.0f"|format(meal_protein) }}g</strong> protein</span>
+        <span><strong>{{ "%.0f"|format(meal_carbs) }}g</strong> carbs</span>
+        <span><strong>{{ "%.0f"|format(meal_fat) }}g</strong> fat</span>
     </div>
     <div class="table-wrap">
     <table>

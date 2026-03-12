@@ -70,6 +70,8 @@ from routes.ai_chat import ai_bp
 from routes.settings import settings_bp
 from routes.photos import photos_bp
 from routes.resources import resources_bp
+from routes.meal_plan import meal_plan_bp
+from routes.motivation import motivation_bp
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(metrics_bp, url_prefix='/metrics')
@@ -79,6 +81,8 @@ app.register_blueprint(ai_bp, url_prefix='/ai')
 app.register_blueprint(settings_bp, url_prefix='/settings')
 app.register_blueprint(photos_bp, url_prefix='/photos')
 app.register_blueprint(resources_bp, url_prefix='/resources')
+app.register_blueprint(meal_plan_bp, url_prefix='/meal-plan')
+app.register_blueprint(motivation_bp, url_prefix='/motivation')
 
 
 @app.context_processor

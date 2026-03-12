@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block title %}Motivation - Health Tracker{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 1rem;">Motivation</h1>
+
+<div class="card">
+    <h2>Get Inspired</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        AI-curated motivational videos and articles personalized to your fitness goals.
+    </p>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <button type="button" class="btn btn-primary cat-btn active" data-cat="general" onclick="loadContent('general', this)">General</button>
+        <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="weight_loss" onclick="loadContent('weight_loss', this)">Weight Loss</button>
+        <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="muscle_building" onclick="loadContent('muscle_building', this)">Muscle Building</button>
+        <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="nutrition" onclick="loadContent('nutrition', this)">Nutrition</button>
+        <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="mindset" onclick="loadContent('mindset', this)">Mindset</button>
+        <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="success_stories" onclick="loadContent('success_stories', this)">Success Stories</button>
+    </div>
+</div>
+
+<div id="loadingArea" style="display:none;" class="card">
+    <p style="color: var(--text-muted);">Finding motivational content for you...</p>
+</div>
+
+<div id="resultsArea" style="display:none;">
+    <div class="card">
+        <h2 id="resultsTitle">Recommended for You</h2>
+        <div id="resultsList"></div>
+    </div>
+</div>
+
+{% if not has_api_key %}
+<div class="card" style="text-align: center; padding: 2rem;">
+    <p style="color: var(--text-muted);">You need an AI API key to get personalized motivational content.</p>
+    <a href="{{ url_for('settings.settings') }}" class="btn btn-primary" style="margin-top: 0.5rem;">Go to Settings</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentCategory = '';
+
+function loadContent(category, btn) {
+    if (currentCategory === category) return;
+    currentCategory = category;
+
+    // Update active button
+    document.querySelectorAll('.cat-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'var(--border)';
+    });
+    btn.classList.add('active');
+    btn.style.background = '';
+
+    const loading = document.getElementById('loadingArea');
+    const results = document.getElementById('resultsArea');
+    loading.style.display = 'block';
+    results.style.display = 'none';
+
+    fetch('{{ url_for("motivation.get_content") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({category: category})
+    })
+    .then(r => r.json().then(data => ({ok: r.ok, data})))
+    .then(({ok, data}) => {
+        loading.style.display = 'none';
+
+        if (!ok || data.error) {
+            alert(data.error || 'Failed to load content');
+            currentCategory = '';
+            return;
+        }
+
+        const labels = {
+            general: 'Fitness Motivation',
+            weight_loss: 'Weight Loss Motivation',
+            muscle_building: 'Muscle Building',
+            nutrition: 'Nutrition Inspiration',
+            mindset: 'Mindset & Discipline',
+            success_stories: 'Success Stories'
+        };
+        document.getElementById('resultsTitle').textContent = labels[category] || 'Recommended for You';
+
+        const list = document.getElementById('resultsList');
+        list.innerHTML = data.results.map(r => {
+            const icon = r.type === 'video' ? '&#9654;' : '&#128196;';
+            const typeLabel = r.type === 'video' ? 'Video' : 'Article';
+            const sourceHint = r.source_hint ? `<span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(r.source_hint)}</span>` : '';
+
+            return `
+                <a href="${r.url}" target="_blank" rel="noopener" style="text-decoration: none; color: inherit; display: block;">
+                    <div class="motivation-card">
+                        <div class="motivation-icon">${icon}</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem;">${escapeHtml(r.title)}</div>
+                            <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.3rem;">${escapeHtml(r.description)}</div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <span class="plan-tag">${typeLabel}</span>
+                                ${sourceHint}
+                            </div>
+                        </div>
+                    </div>
+                </a>`;
+        }).join('');
+
+        results.style.display = 'block';
+    })
+    .catch(() => {
+        loading.style.display = 'none';
+        alert('Failed to load content. Check your API key.');
+        currentCategory = '';
+    });
+}
+
+function escapeHtml(text) {
+    const d = document.createElement('div');
+    d.textContent = text || '';
+    return d.innerHTML;
+}
+
+// Auto-load general on page load if API key exists
+{% if has_api_key %}
+document.addEventListener('DOMContentLoaded', function() {
+    loadContent('general', document.querySelector('.cat-btn[data-cat="general"]'));
+});
+{% endif %}
+</script>
+{% endblock %}

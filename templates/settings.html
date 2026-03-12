@@ -84,7 +84,10 @@
             <div class="form-group" style="grid-column: span 2;">
                 <label>YouTube Data API Key</label>
                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="password" name="youtube_api_key" placeholder="{{ '••••••••' if current_user.youtube_api_key else 'Enter your YouTube API key' }}" style="flex: 1;">
+                    <input type="password" name="youtube_api_key" id="yt-key-input" placeholder="{{ '••••••••' if current_user.youtube_api_key else 'Enter your YouTube API key' }}" style="flex: 1;">
+                    {% if current_user.youtube_api_key %}
+                    <button type="button" class="btn btn-sm btn-danger" onclick="clearYtKey()" style="white-space: nowrap;">Clear Key</button>
+                    {% endif %}
                     <a href="https://console.cloud.google.com/apis/credentials" target="_blank" class="btn btn-sm" style="background: var(--border); white-space: nowrap;">Google Cloud Console</a>
                 </div>
                 <small style="color: var(--text-muted);">Leave blank to keep existing key. Free quota: 10,000 units/day.</small>
@@ -116,5 +119,14 @@
         sel.value = browserTz;
     }
 })();
+function clearYtKey() {
+    var inp = document.getElementById('yt-key-input');
+    inp.value = '__CLEAR__';
+    inp.type = 'text';
+    inp.value = '__CLEAR__';
+    inp.placeholder = 'Key will be removed on save';
+    inp.disabled = true;
+    inp.style.color = 'var(--danger)';
+}
 </script>
 {% endblock %}

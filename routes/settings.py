@@ -33,7 +33,9 @@ def settings():
         if cn_key:
             current_user.calorieninjas_api_key = cn_key
         yt_key = request.form.get('youtube_api_key', '').strip()
-        if yt_key:
+        if yt_key == '__CLEAR__':
+            current_user.youtube_api_key = None
+        elif yt_key:
             current_user.youtube_api_key = yt_key
         db.session.commit()
         flash('Settings saved', 'success')

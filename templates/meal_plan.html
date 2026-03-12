@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block title %}Meal Plan - Health Tracker{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 1rem;">Meal Plan</h1>
+
+{% if plan_name %}
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 0.5rem;">
+        <h2 style="margin: 0;">{{ plan_name }}</h2>
+        <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
+            <a href="{{ url_for('ai.chat_page') }}" class="btn btn-sm btn-primary">Edit with AI</a>
+            <button type="button" class="btn btn-sm btn-success" onclick="window.print()">Print Plan</button>
+            <form method="POST" action="{{ url_for('meal_plan.delete_plan') }}" style="display:inline;">
+                <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this meal plan?')">Remove Plan</button>
+            </form>
+        </div>
+    </div>
+
+    <div class="plan-week">
+    {% for day_name, day_meals in ordered_plan %}
+        <div class="plan-day {{ 'plan-day-today' if day_name == today_day_name }}">
+            <div class="plan-day-header">
+                {{ day_name | capitalize }}{% if day_name == today_day_name %} <span style="font-size: 0.75rem; opacity: 0.8;">(today)</span>{% endif %}
+            </div>
+            <div class="plan-day-body">
+                {% if day_totals.get(day_name) %}
+                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.5rem; font-size: 0.7rem; color: var(--text-muted); padding-bottom: 0.4rem; border-bottom: 1px solid var(--border);">
+                    <span><strong>{{ "%.0f"|format(day_totals[day_name].calories) }}</strong> cal</span>
+                    <span><strong>{{ "%.0f"|format(day_totals[day_name].protein) }}g</strong> P</span>
+                    <span><strong>{{ "%.0f"|format(day_totals[day_name].carbs) }}g</strong> C</span>
+                    <span><strong>{{ "%.0f"|format(day_totals[day_name].fat) }}g</strong> F</span>
+                </div>
+                {% endif %}
+                {% for meal_type, meals in day_meals %}
+                <div style="margin-bottom: 0.5rem;">
+                    <div style="font-size: 0.7rem; font-weight: 700; text-transform: uppercase; color: var(--primary); margin-bottom: 0.2rem;">{{ meal_type | capitalize }}</div>
+                    {% for meal in meals %}
+                    <div class="plan-exercise">
+                        <div class="plan-exercise-name">{{ meal.meal_name }}</div>
+                        <div class="plan-exercise-detail">
+                            {% if meal.serving_size %}<span style="color: var(--text-muted);">{{ meal.serving_size }}</span>{% endif %}
+                            {% if meal.calories %}
+                            <span class="plan-tag">{{ "%.0f"|format(meal.calories) }} cal</span>
+                            {% endif %}
+                            {% if meal.protein %}
+                            <span style="font-size: 0.7rem; color: var(--text-muted);">{{ "%.0f"|format(meal.protein) }}g P</span>
+                            {% endif %}
+                            {% if meal.carbs %}
+                            <span style="font-size: 0.7rem; color: var(--text-muted);">{{ "%.0f"|format(meal.carbs) }}g C</span>
+                            {% endif %}
+                            {% if meal.fat %}
+                            <span style="font-size: 0.7rem; color: var(--text-muted);">{{ "%.0f"|format(meal.fat) }}g F</span>
+                            {% endif %}
+                        </div>
+                        {% if meal.notes %}<div class="plan-exercise-notes">{{ meal.notes }}</div>{% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endfor %}
+    </div>
+</div>
+{% else %}
+<div class="card" style="text-align: center; padding: 2rem;">
+    <p style="color: var(--text-muted); margin-bottom: 1rem;">No weekly meal plan set up yet.</p>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        Tell the AI about your dietary goals, restrictions, and preferences and it will build a personalized weekly meal plan with full macro breakdowns.
+    </p>
+    <a href="{{ url_for('ai.chat_page') }}" class="btn btn-primary">Create a Plan with AI</a>
+</div>
+{% endif %}
+
+{% endblock %}

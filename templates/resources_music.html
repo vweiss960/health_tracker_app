@@ -34,9 +34,10 @@
 </div>
 
 <div id="playerArea" style="display:none;" class="card">
-    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
         <h2 id="nowPlayingTitle" style="margin-bottom: 0;">Now Playing</h2>
         <div style="display: flex; gap: 0.5rem;">
+            <button type="button" class="btn btn-sm" style="background: var(--border);" id="moreLikeBtn" onclick="moreLikeThis()" style="display:none;">More like this</button>
             <a id="openOnYtBtn" href="#" target="_blank" class="btn btn-sm" style="background: var(--border); display: none;">Open on YouTube</a>
             <button type="button" class="btn btn-sm btn-danger" onclick="stopPlayer()">Stop</button>
         </div>
@@ -46,12 +47,29 @@
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowfullscreen></iframe>
     </div>
+    <!-- Tracklist panel (API key only) -->
+    <div id="tracklistPanel" style="display:none; margin-top: 1rem;">
+        <h3 style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 0.5rem;">Tracklist</h3>
+        <div id="tracklistContent" style="max-height: 300px; overflow-y: auto;"></div>
+    </div>
+</div>
+
+<!-- More Like This results -->
+<div id="moreLikeArea" style="display:none;">
+    <div class="card">
+        <h2>Similar Playlists</h2>
+        <div id="moreLikeList" class="music-results"></div>
+    </div>
 </div>
 
 {% endblock %}
 
 {% block scripts %}
 <script>
+const hasYtKey = {{ 'true' if has_yt_key else 'false' }};
+let currentPlayingQuery = '';
+let currentPlayingTitle = '';
+
 function quickSearch(text) {
     document.getElementById('musicPrompt').value = text;
     searchMusic();
@@ -70,6 +88,7 @@ function searchMusic() {
     status.style.display = 'block';
     document.getElementById('statusText').textContent = 'AI is finding the perfect music for you...';
     results.style.display = 'none';
+    document.getElementById('moreLikeArea').style.display = 'none';
 
     fetch('{{ url_for("resources.music_search") }}', {
         method: 'POST',
@@ -88,33 +107,7 @@ function searchMusic() {
         }
 
         document.getElementById('resultsTitle').textContent = `Results for "${data.search_query}"`;
-        const list = document.getElementById('resultsList');
-        list.innerHTML = data.results.map((r, i) => {
-            const hasId = r.id && r.type !== 'search';
-            const thumb = r.thumbnail
-                ? `<img src="${r.thumbnail}" alt="">`
-                : `<div class="music-nokey-icon">${hasId ? '&#9654;' : '&#128269;'}</div>`;
-            const tag = r.type === 'playlist' ? 'Playlist' : (r.type === 'search' ? 'Search' : 'Video');
-            const channel = r.channel ? escapeHtml(r.channel) : escapeHtml(r.description || '');
-            const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(r.query || r.title)}`;
-
-            return `
-                <div class="music-result-card" data-type="${r.type}" data-id="${r.id || ''}" data-query="${escapeAttr(r.query || r.title)}">
-                    <div style="cursor:pointer; display:flex; gap:0.75rem; flex:1; min-width:0; align-items:center;" onclick="playResult(this.parentElement)">
-                        ${thumb}
-                        <div class="music-result-info">
-                            <div class="music-result-title">${escapeHtml(r.title)}</div>
-                            <div class="music-result-meta">
-                                <span class="plan-tag">${tag}</span>
-                                ${channel}
-                            </div>
-                        </div>
-                    </div>
-                    <a href="${ytUrl}" target="_blank" class="btn btn-sm"
-                       style="background: var(--border); white-space: nowrap; flex-shrink: 0; align-self: center;"
-                       onclick="event.stopPropagation();">YouTube</a>
-                </div>`;
-        }).join('');
+        renderResults(document.getElementById('resultsList'), data.results);
         results.style.display = 'block';
     })
     .catch(() => {
@@ -125,6 +118,39 @@ function searchMusic() {
     });
 }
 
+function renderResults(container, results) {
+    container.innerHTML = results.map((r, i) => {
+        const hasId = r.id && r.type !== 'search';
+        const thumb = r.thumbnail
+            ? `<img src="${r.thumbnail}" alt="">`
+            : `<div class="music-nokey-icon">${hasId ? '&#9654;' : '&#128269;'}</div>`;
+        const tag = r.type === 'playlist' ? 'Playlist' : (r.type === 'search' ? 'Search' : 'Video');
+        const trackInfo = r.track_count ? ` &middot; ${r.track_count} tracks` : '';
+        const channel = r.channel ? escapeHtml(r.channel) : escapeHtml(r.description || '');
+        const ytUrl = `https://www.youtube.com/results?search_query=${encodeURIComponent(r.query || r.title)}`;
+
+        return `
+            <div class="music-result-card" data-type="${r.type}" data-id="${r.id || ''}" data-query="${escapeAttr(r.query || r.title)}">
+                <div style="cursor:pointer; display:flex; gap:0.75rem; flex:1; min-width:0; align-items:center;" onclick="playResult(this.parentElement)">
+                    ${thumb}
+                    <div class="music-result-info">
+                        <div class="music-result-title">${escapeHtml(r.title)}</div>
+                        <div class="music-result-meta">
+                            <span class="plan-tag">${tag}${trackInfo}</span>
+                            ${channel}
+                        </div>
+                    </div>
+                </div>
+                <div style="display:flex; gap:0.25rem; flex-shrink:0; align-self:center;">
+                    ${hasId && hasYtKey ? `<button type="button" class="btn btn-sm" style="background:var(--border); white-space:nowrap;" onclick="event.stopPropagation(); showTracklist('${r.id}')">Tracks</button>` : ''}
+                    <a href="${ytUrl}" target="_blank" class="btn btn-sm"
+                       style="background: var(--border); white-space: nowrap;"
+                       onclick="event.stopPropagation();">YouTube</a>
+                </div>
+            </div>`;
+    }).join('');
+}
+
 function playResult(el) {
     const type = el.dataset.type;
     const id = el.dataset.id;
@@ -132,6 +158,7 @@ function playResult(el) {
     const title = el.querySelector('.music-result-title').textContent;
     const player = document.getElementById('ytPlayer');
     const openBtn = document.getElementById('openOnYtBtn');
+    const moreLikeBtn = document.getElementById('moreLikeBtn');
 
     if (type === 'playlist' && id) {
         player.src = `https://www.youtube.com/embed/videoseries?list=${id}&autoplay=1`;
@@ -142,23 +169,109 @@ function playResult(el) {
         openBtn.href = `https://www.youtube.com/watch?v=${id}`;
         openBtn.style.display = 'inline-flex';
     } else {
-        // No embeddable ID — open YouTube search in new tab
         window.open(`https://www.youtube.com/results?search_query=${encodeURIComponent(query)}`, '_blank');
         return;
     }
+
+    currentPlayingQuery = query;
+    currentPlayingTitle = title;
+    moreLikeBtn.style.display = 'inline-flex';
 
     document.getElementById('nowPlayingTitle').textContent = title;
     document.getElementById('playerArea').style.display = 'block';
     document.getElementById('playerArea').scrollIntoView({behavior: 'smooth', block: 'start'});
     document.querySelectorAll('.music-result-card').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
+
+    // Auto-load tracklist if API key available
+    if (hasYtKey && type === 'playlist' && id) {
+        loadTracklist(id);
+    } else {
+        document.getElementById('tracklistPanel').style.display = 'none';
+    }
 }
 
 function stopPlayer() {
     document.getElementById('ytPlayer').src = '';
     document.getElementById('playerArea').style.display = 'none';
     document.getElementById('openOnYtBtn').style.display = 'none';
+    document.getElementById('moreLikeBtn').style.display = 'none';
+    document.getElementById('tracklistPanel').style.display = 'none';
     document.querySelectorAll('.music-result-card').forEach(c => c.classList.remove('active'));
+    currentPlayingQuery = '';
+    currentPlayingTitle = '';
+}
+
+function loadTracklist(playlistId) {
+    const panel = document.getElementById('tracklistPanel');
+    const content = document.getElementById('tracklistContent');
+    content.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Loading tracklist...</p>';
+    panel.style.display = 'block';
+
+    fetch(`{{ url_for("resources.playlist_details") }}?id=${encodeURIComponent(playlistId)}`)
+    .then(r => r.json())
+    .then(data => {
+        if (!data.tracks || !data.tracks.length) {
+            content.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No tracks found.</p>';
+            return;
+        }
+        content.innerHTML = data.tracks.map((t, i) => `
+            <div style="display:flex; gap:0.5rem; padding:0.3rem 0; font-size:0.85rem; border-bottom:1px solid var(--border);">
+                <span style="color:var(--text-muted); min-width:1.5rem; text-align:right;">${i + 1}.</span>
+                <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(t.title)}</span>
+                ${t.channel ? `<span style="color:var(--text-muted); font-size:0.75rem; flex-shrink:0;">${escapeHtml(t.channel)}</span>` : ''}
+            </div>
+        `).join('');
+    })
+    .catch(() => {
+        content.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">Failed to load tracklist.</p>';
+    });
+}
+
+function showTracklist(playlistId) {
+    const panel = document.getElementById('tracklistPanel');
+    // Toggle if already showing
+    if (panel.style.display === 'block' && panel.dataset.currentId === playlistId) {
+        panel.style.display = 'none';
+        return;
+    }
+    panel.dataset.currentId = playlistId;
+    document.getElementById('playerArea').style.display = 'block';
+    loadTracklist(playlistId);
+    panel.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+function moreLikeThis() {
+    if (!currentPlayingQuery && !currentPlayingTitle) return;
+
+    const btn = document.getElementById('moreLikeBtn');
+    btn.textContent = 'Finding...';
+    btn.disabled = true;
+
+    fetch('{{ url_for("resources.more_like_this") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({query: currentPlayingQuery, title: currentPlayingTitle})
+    })
+    .then(r => r.json().then(data => ({ok: r.ok, data})))
+    .then(({ok, data}) => {
+        btn.textContent = 'More like this';
+        btn.disabled = false;
+
+        if (!ok || data.error) {
+            alert(data.error || 'Could not find similar playlists');
+            return;
+        }
+
+        renderResults(document.getElementById('moreLikeList'), data.results);
+        document.getElementById('moreLikeArea').style.display = 'block';
+        document.getElementById('moreLikeArea').scrollIntoView({behavior: 'smooth', block: 'start'});
+    })
+    .catch(() => {
+        btn.textContent = 'More like this';
+        btn.disabled = false;
+        alert('Failed to find similar playlists.');
+    });
 }
 
 function escapeHtml(text) {

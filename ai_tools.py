@@ -2,7 +2,7 @@
 
 import json
 from datetime import date, timedelta, datetime, timezone
-from models import db, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan, User, WaterEntry, CaffeineEntry
+from models import db, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan, MealPlan, User, WaterEntry, CaffeineEntry
 
 
 def _user_today(user_id):
@@ -290,6 +290,78 @@ TOOL_DEFINITIONS = [
                 }
             }
         }
+    },
+    {
+        "name": "save_meal_plan",
+        "description": "Save a weekly meal plan for the user. This replaces any existing meal plan. Provide the full week's meals organized by day and meal type. Each meal needs: day_of_week, meal_type (breakfast/lunch/dinner/snack), meal_name, and optionally serving_size, calories, protein, carbs, fat, fiber, notes. The plan will appear on the user's Meal Plan page.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "plan_name": {
+                    "type": "string",
+                    "description": "Name for this meal plan, e.g. 'High-Protein Weight Loss Plan'"
+                },
+                "meals": {
+                    "type": "array",
+                    "description": "List of meals for the week",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "day_of_week": {
+                                "type": "string",
+                                "description": "Day: monday, tuesday, wednesday, thursday, friday, saturday, sunday"
+                            },
+                            "meal_type": {
+                                "type": "string",
+                                "description": "Type: breakfast, lunch, dinner, snack"
+                            },
+                            "meal_name": {
+                                "type": "string",
+                                "description": "Name/description of the meal, e.g. 'Grilled chicken breast with steamed broccoli and brown rice'"
+                            },
+                            "serving_size": {
+                                "type": "string",
+                                "description": "Serving size, e.g. '6 oz chicken, 1 cup rice, 1 cup broccoli'"
+                            },
+                            "calories": {
+                                "type": "number",
+                                "description": "Estimated calories for this meal"
+                            },
+                            "protein": {
+                                "type": "number",
+                                "description": "Protein in grams"
+                            },
+                            "carbs": {
+                                "type": "number",
+                                "description": "Carbs in grams"
+                            },
+                            "fat": {
+                                "type": "number",
+                                "description": "Fat in grams"
+                            },
+                            "fiber": {
+                                "type": "number",
+                                "description": "Fiber in grams"
+                            },
+                            "notes": {
+                                "type": "string",
+                                "description": "Optional notes like prep tips or substitutions"
+                            }
+                        },
+                        "required": ["day_of_week", "meal_type", "meal_name"]
+                    }
+                }
+            },
+            "required": ["plan_name", "meals"]
+        }
+    },
+    {
+        "name": "get_meal_plan",
+        "description": "Get the user's current saved weekly meal plan.",
+        "input_schema": {
+            "type": "object",
+            "properties": {}
+        }
     }
 ]
 
@@ -309,6 +381,8 @@ def execute_tool(tool_name, tool_input, user_id):
         "find_exercise_video": _find_exercise_video,
         "save_training_plan": _save_training_plan,
         "get_training_plan": _get_training_plan,
+        "save_meal_plan": _save_meal_plan,
+        "get_meal_plan": _get_meal_plan,
         "get_water_intake": _get_water_intake,
         "get_caffeine_intake": _get_caffeine_intake,
     }
@@ -688,6 +762,74 @@ def _get_training_plan(input_data, user_id):
             "reps": e.reps,
             "rest_seconds": e.rest_seconds,
             "notes": e.notes,
+        })
+
+    return json.dumps({"plan_name": plan_name, "days": days})
+
+
+def _save_meal_plan(input_data, user_id):
+    plan_name = input_data.get("plan_name", "My Meal Plan")
+    meals = input_data.get("meals", [])
+
+    if not meals:
+        return json.dumps({"error": "No meals provided"})
+
+    # Deactivate existing meal plan
+    MealPlan.query.filter_by(user_id=user_id, active=True).update({"active": False})
+
+    # Save new plan
+    for i, meal in enumerate(meals):
+        entry = MealPlan(
+            user_id=user_id,
+            name=plan_name,
+            day_of_week=meal.get("day_of_week", "monday").lower(),
+            meal_type=meal.get("meal_type", "snack").lower(),
+            meal_name=meal.get("meal_name", ""),
+            serving_size=meal.get("serving_size"),
+            calories=meal.get("calories"),
+            protein=meal.get("protein"),
+            carbs=meal.get("carbs"),
+            fat=meal.get("fat"),
+            fiber=meal.get("fiber"),
+            notes=meal.get("notes"),
+            order_index=i,
+            active=True,
+        )
+        db.session.add(entry)
+
+    db.session.commit()
+
+    days_count = len(set(meal.get("day_of_week", "").lower() for meal in meals))
+    return json.dumps({
+        "success": True,
+        "message": f"Meal plan '{plan_name}' saved with {len(meals)} meals across {days_count} days. The user can now see it on their Meal Plan page.",
+    })
+
+
+def _get_meal_plan(input_data, user_id):
+    plan_entries = MealPlan.query.filter_by(
+        user_id=user_id, active=True
+    ).order_by(MealPlan.order_index).all()
+
+    if not plan_entries:
+        return json.dumps({"message": "No meal plan saved yet."})
+
+    plan_name = plan_entries[0].name
+    days = {}
+    for meal in plan_entries:
+        day = meal.day_of_week
+        if day not in days:
+            days[day] = []
+        days[day].append({
+            "meal_name": meal.meal_name,
+            "meal_type": meal.meal_type,
+            "serving_size": meal.serving_size,
+            "calories": meal.calories,
+            "protein": meal.protein,
+            "carbs": meal.carbs,
+            "fat": meal.fat,
+            "fiber": meal.fiber,
+            "notes": meal.notes,
         })
 
     return json.dumps({"plan_name": plan_name, "days": days})
