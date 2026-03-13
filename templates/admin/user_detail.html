@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Admin - {{ user.username }} - GritBoard{% endblock %}
+{% block content %}
+<p style="margin-bottom: 1rem;">
+    <a href="{{ url_for('admin.dashboard') }}" style="color: var(--primary);">&larr; Back to Admin</a>
+</p>
+
+<h1 style="margin-bottom: 0.25rem;">{{ user.display_name or user.username }}</h1>
+<p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+    @{{ user.username }}
+    {% if user.is_admin %}<span style="background: var(--primary); color: #fff; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">ADMIN</span>{% endif %}
+    {% if user.must_change_password %}<span style="background: var(--warning); color: #fff; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem; margin-left: 0.5rem;">TEMP PASSWORD</span>{% endif %}
+</p>
+
+<div class="stats-row">
+    <div class="stat-card"><div class="value">{{ counts.food_entries }}</div><div class="label">Food Entries</div></div>
+    <div class="stat-card"><div class="value">{{ counts.training_entries }}</div><div class="label">Training Entries</div></div>
+    <div class="stat-card"><div class="value">{{ counts.body_metrics }}</div><div class="label">Body Metrics</div></div>
+    <div class="stat-card"><div class="value">{{ counts.photos }}</div><div class="label">Photos</div></div>
+    <div class="stat-card"><div class="value">{{ counts.conversations }}</div><div class="label">Conversations</div></div>
+    <div class="stat-card"><div class="value">{{ counts.common_meals }}</div><div class="label">Common Meals</div></div>
+    <div class="stat-card"><div class="value">{{ counts.water_entries }}</div><div class="label">Water Entries</div></div>
+    <div class="stat-card"><div class="value">{{ counts.caffeine_entries }}</div><div class="label">Caffeine Entries</div></div>
+</div>
+
+<div class="card">
+    <h2>User Info</h2>
+    <div class="form-grid" style="font-size: 0.9rem;">
+        <div><strong>Timezone:</strong> {{ user.tz or 'Not set' }}</div>
+        <div><strong>Fitness Level:</strong> {{ user.fitness_level or 'Not set' }}</div>
+        <div><strong>Target Weight:</strong> {{ user.target_weight or 'Not set' }}</div>
+        <div><strong>Target Calories:</strong> {{ user.target_calories or 'Not set' }}</div>
+        <div><strong>AI Provider:</strong> {{ user.ai_provider or 'Not set' }}</div>
+        <div><strong>AI Key:</strong> {{ 'Set' if user.ai_api_key else 'Not set' }}</div>
+        <div><strong>Active Training Plan:</strong> {{ 'Yes' if counts.training_plans else 'No' }}</div>
+        <div><strong>Active Meal Plan:</strong> {{ 'Yes' if counts.meal_plans else 'No' }}</div>
+    </div>
+    {% if user.health_goals %}
+    <div style="margin-top: 1rem;">
+        <strong>Health Goals:</strong>
+        <p style="color: var(--text-muted); margin-top: 0.25rem;">{{ user.health_goals }}</p>
+    </div>
+    {% endif %}
+    {% if user.dietary_restrictions %}
+    <div style="margin-top: 0.5rem;">
+        <strong>Dietary Restrictions:</strong>
+        <p style="color: var(--text-muted); margin-top: 0.25rem;">{{ user.dietary_restrictions }}</p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h2>Account Actions</h2>
+    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap; align-items: center;">
+        <form method="POST" action="{{ url_for('admin.reset_password', user_id=user.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-primary" onclick="return confirm('Generate a new temporary password for {{ user.username }}?')">Reset Password</button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-primary" style="background: var(--warning);">
+                {{ 'Revoke Admin' if user.is_admin else 'Grant Admin' }}
+            </button>
+        </form>
+        {% if user.id != current_user.id %}
+        <form method="POST" action="{{ url_for('admin.delete_user', user_id=user.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-danger" onclick="return confirm('Permanently delete user {{ user.username }} and ALL their data? This cannot be undone.')">Delete User</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <h2>Migrate Data</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        Copy or move this user's data to another user.
+    </p>
+    <form method="POST" action="{{ url_for('admin.migrate_data', user_id=user.id) }}" id="migrateForm">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Data Type</label>
+                <select name="data_type" required>
+                    <option value="">Select...</option>
+                    <option value="food_entries">Food Entries ({{ counts.food_entries }})</option>
+                    <option value="training_entries">Training Entries ({{ counts.training_entries }})</option>
+                    <option value="body_metrics">Body Metrics ({{ counts.body_metrics }})</option>
+                    <option value="training_plans">Training Plans</option>
+                    <option value="meal_plans">Meal Plans</option>
+                    <option value="photos">Progress Photos ({{ counts.photos }})</option>
+                    <option value="conversations">AI Conversations ({{ counts.conversations }})</option>
+                    <option value="common_meals">Common Meals ({{ counts.common_meals }})</option>
+                    <option value="water_entries">Water Entries ({{ counts.water_entries }})</option>
+                    <option value="caffeine_entries">Caffeine Entries ({{ counts.caffeine_entries }})</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Target User</label>
+                <select name="target_user_id" required>
+                    <option value="">Select...</option>
+                    {% for u in all_users %}
+                    <option value="{{ u.id }}">{{ u.username }} ({{ u.display_name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Action</label>
+                <select name="action">
+                    <option value="copy">Copy (keep originals)</option>
+                    <option value="move">Move (remove from this user)</option>
+                </select>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;" onclick="return confirm('Are you sure you want to migrate this data?')">Migrate Data</button>
+    </form>
+</div>
+{% endblock %}

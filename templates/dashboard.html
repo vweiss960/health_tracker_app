@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Dashboard - Health Tracker{% endblock %}
+{% block title %}Dashboard - GritBoard{% endblock %}
 {% block head %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 {% endblock %}
@@ -229,10 +229,10 @@ fetch('{{ url_for("metrics.api_data") }}')
         const labels = data.map(d => d.date);
         const datasets = [];
         const fields = [
-            {key: 'weight', label: 'Weight', color: '#4f46e5'},
-            {key: 'waist', label: 'Waist', color: '#16a34a'},
-            {key: 'belly', label: 'Belly', color: '#f59e0b'},
-            {key: 'chest', label: 'Chest', color: '#dc2626'},
+            {key: 'weight', label: 'Weight', color: '#818cf8'},
+            {key: 'waist', label: 'Waist', color: '#34d399'},
+            {key: 'belly', label: 'Belly', color: '#fbbf24'},
+            {key: 'chest', label: 'Chest', color: '#f87171'},
         ];
         fields.forEach(f => {
             const vals = data.map(d => d[f.key]);
@@ -249,8 +249,24 @@ fetch('{{ url_for("metrics.api_data") }}')
             data: { labels, datasets },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                plugins: { legend: { position: 'top' } },
-                scales: { x: { display: true }, y: { display: true } },
+                plugins: {
+                    legend: {
+                        position: 'top',
+                        labels: { color: '#e0e0e0' }
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        ticks: { color: '#888' },
+                        grid: { color: 'rgba(255,255,255,0.08)' }
+                    },
+                    y: {
+                        display: true,
+                        ticks: { color: '#888' },
+                        grid: { color: 'rgba(255,255,255,0.08)' }
+                    }
+                },
             }
         });
     });

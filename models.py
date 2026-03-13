@@ -21,6 +21,8 @@ class User(UserMixin, db.Model):
     calorieninjas_api_key = db.Column(db.String(256))
     youtube_api_key = db.Column(db.String(256))
     tz = db.Column(db.String(64))  # IANA timezone, e.g. 'America/New_York'
+    is_admin = db.Column(db.Boolean, default=False)
+    must_change_password = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     metrics = db.relationship('BodyMetric', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -176,6 +178,49 @@ class MealPlan(db.Model):
     order_index = db.Column(db.Integer, default=0)
     active = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class LoginAttempt(db.Model):
+    __tablename__ = 'login_attempts'
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), nullable=False, index=True)
+    username_tried = db.Column(db.String(80))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class BlockedIP(db.Model):
+    __tablename__ = 'blocked_ips'
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), unique=True, nullable=False, index=True)
+    fail_count = db.Column(db.Integer, default=0)
+    blocked_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    reason = db.Column(db.String(200))
+
+
+class GeoCache(db.Model):
+    """Cache IP geolocation lookups to avoid repeated API calls."""
+    __tablename__ = 'geo_cache'
+    id = db.Column(db.Integer, primary_key=True)
+    ip_address = db.Column(db.String(45), unique=True, nullable=False, index=True)
+    country = db.Column(db.String(100))
+    region = db.Column(db.String(100))
+    city = db.Column(db.String(100))
+    isp = db.Column(db.String(200))
+    lat = db.Column(db.Float)
+    lon = db.Column(db.Float)
+    looked_up_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class UserSession(db.Model):
+    """Track user login sessions with IP and location."""
+    __tablename__ = 'user_sessions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.String(500))
+    logged_in_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    last_seen_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user = db.relationship('User', backref=db.backref('sessions', lazy=True))
 
 
 class TrainingEntry(db.Model):

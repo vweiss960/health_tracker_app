@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+{% block title %}Admin - GritBoard{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 0.5rem;">Admin Panel</h1>
+<p style="color: var(--text-muted); margin-bottom: 1.5rem;">Local access only</p>
+
+<div class="stats-row">
+    <div class="stat-card">
+        <div class="value">{{ stats.total_users }}</div>
+        <div class="label">Users</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ stats.admin_users }}</div>
+        <div class="label">Admins</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ stats.food_entries }}</div>
+        <div class="label">Food Entries</div>
+    </div>
+    <div class="stat-card">
+        <div class="value">{{ stats.training_entries }}</div>
+        <div class="label">Training Entries</div>
+    </div>
+</div>
+
+<div class="card">
+    <h2>System Settings</h2>
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+        <span>Registration: <strong style="color: {{ 'var(--danger)' if reg_disabled else 'var(--success)' }};">{{ 'Disabled' if reg_disabled else 'Enabled' }}</strong></span>
+        <span style="color: var(--text-muted); font-size: 0.85rem;">Set <code>DISABLE_REGISTRATION=true</code> in your environment to disable</span>
+    </div>
+</div>
+
+<div class="card">
+    <h2>Create User</h2>
+    <form method="POST" action="{{ url_for('admin.create_user') }}">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Username</label>
+                <input type="text" name="username" required placeholder="3-30 chars, letters/numbers/-/_">
+            </div>
+            <div class="form-group">
+                <label>Display Name</label>
+                <input type="text" name="display_name" placeholder="Optional">
+            </div>
+            <div class="form-group" style="align-self: end;">
+                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                    <input type="checkbox" name="is_admin" value="1"> Admin
+                </label>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Create with Temp Password</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>All Users</h2>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Username</th>
+                    <th>Display Name</th>
+                    <th>Admin</th>
+                    <th>Temp PW</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for user in users %}
+                <tr>
+                    <td><strong>{{ user.username }}</strong></td>
+                    <td>{{ user.display_name or '-' }}</td>
+                    <td>{{ 'Yes' if user.is_admin else 'No' }}</td>
+                    <td>{{ 'Pending' if user.must_change_password else '-' }}</td>
+                    <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '-' }}</td>
+                    <td>
+                        <a href="{{ url_for('admin.user_detail', user_id=user.id) }}" class="btn btn-sm btn-primary">Manage</a>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <h2 style="color: var(--danger);">Blocked IPs</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        IPs are auto-blocked after 30 failed login attempts within 24 hours.
+    </p>
+    {% if blocked_ips %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>IP Address</th>
+                    <th>Failures</th>
+                    <th>Blocked At</th>
+                    <th>Reason</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for b in blocked_ips %}
+                <tr>
+                    <td><strong>{{ b.ip_address }}</strong></td>
+                    <td>{{ b.fail_count }}</td>
+                    <td>{{ b.blocked_at.strftime('%Y-%m-%d %H:%M UTC') if b.blocked_at else '-' }}</td>
+                    <td style="font-size: 0.85rem; color: var(--text-muted);">{{ b.reason or '-' }}</td>
+                    <td>
+                        <form method="POST" action="{{ url_for('admin.unblock_ip', block_id=b.id) }}" style="display:inline;">
+                            <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Unblock {{ b.ip_address }}?')">Unblock</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">No blocked IPs</p>
+    {% endif %}
+
+    <h3 style="margin-top: 1.5rem; font-size: 1rem;">Manually Block an IP</h3>
+    <form method="POST" action="{{ url_for('admin.block_ip') }}" style="display: flex; gap: 0.5rem; align-items: end; margin-top: 0.5rem;">
+        <div class="form-group" style="margin-bottom: 0;">
+            <input type="text" name="ip_address" placeholder="e.g. 203.0.113.45" required style="width: 220px;">
+        </div>
+        <button type="submit" class="btn btn-sm btn-danger">Block IP</button>
+    </form>
+</div>
+
+<div class="card">
+    <h2>Recent User Sessions</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        Login sessions from the last 7 days (most recent first).
+    </p>
+    {% if recent_sessions %}
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>User</th>
+                    <th>IP Address</th>
+                    <th>Location</th>
+                    <th>ISP</th>
+                    <th>User Agent</th>
+                    <th>Logged In</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for s in recent_sessions %}
+                {% set geo = geo_map.get(s.ip_address) %}
+                <tr>
+                    <td><strong>{{ s.user.username if s.user else '?' }}</strong></td>
+                    <td style="font-family: monospace; font-size: 0.85rem;">{{ s.ip_address }}</td>
+                    <td>
+                        {% if geo %}
+                            {{ geo.city or '' }}{% if geo.city and geo.region %}, {% endif %}{{ geo.region or '' }}
+                            <br><span style="color: var(--text-muted); font-size: 0.85rem;">{{ geo.country or 'Unknown' }}</span>
+                        {% else %}
+                            <span style="color: var(--text-muted);">—</span>
+                        {% endif %}
+                    </td>
+                    <td style="font-size: 0.85rem; color: var(--text-muted);">{{ geo.isp if geo and geo.isp else '—' }}</td>
+                    <td style="font-size: 0.8rem; color: var(--text-muted); max-width: 250px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{{ s.user_agent or '' }}">{{ s.user_agent or '—' }}</td>
+                    <td style="white-space: nowrap;">{{ s.logged_in_at.strftime('%Y-%m-%d %H:%M UTC') if s.logged_in_at else '—' }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p style="color: var(--text-muted);">No recent sessions</p>
+    {% endif %}
+</div>
+{% endblock %}

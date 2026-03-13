@@ -6,8 +6,18 @@ services:
     volumes:
       - health_data:/app/data
     environment:
-      - SECRET_KEY=change-me-in-production
+      - SECRET_KEY=${SECRET_KEY:?Set a strong SECRET_KEY in .env or environment}
       - DATABASE_URL=sqlite:////app/data/health_tracker.db
+      # Set to 'true' if running behind an HTTPS reverse proxy
+      # - HTTPS_ENABLED=true
+      # Set to 'development' to enable debug mode and debug endpoints
+      # - FLASK_ENV=development
+      # Promote a user to admin on startup (remove after first use)
+      - ADMIN_USER=${ADMIN_USER:-}
+      # Disable public registration
+      - DISABLE_REGISTRATION=${DISABLE_REGISTRATION:-}
+      # Set to number of reverse proxies (1 for nginx/Caddy) so real client IPs are used
+      - PROXY_COUNT=${PROXY_COUNT:-0}
     restart: unless-stopped
 
 volumes:

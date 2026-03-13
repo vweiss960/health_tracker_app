@@ -1,10 +1,10 @@
 {% extends "base.html" %}
-{% block title %}Login - Health Tracker{% endblock %}
+{% block title %}Login - GritBoard{% endblock %}
 {% block content %}
 <div class="auth-container">
     <div class="card">
-        <h2>Health Tracker</h2>
-        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Sign in to your account</p>
+        <h2 style="color: #e63946; text-transform: uppercase; letter-spacing: 3px; font-weight: 900;">GritBoard</h2>
+        <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Lock in. Get after it.</p>
         <form method="POST">
             <div class="form-group">
                 <input type="text" name="username" placeholder="Username" required autofocus>
@@ -14,9 +14,11 @@
             </div>
             <button type="submit" class="btn btn-primary">Sign In</button>
         </form>
+        {% if not reg_disabled %}
         <p style="margin-top: 1rem; font-size: 0.9rem; color: var(--text-muted);">
             Don't have an account? <a href="{{ url_for('auth.register') }}" style="color: var(--primary);">Register</a>
         </p>
+        {% endif %}
     </div>
 </div>
 {% endblock %}

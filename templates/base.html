@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Health Tracker{% endblock %}</title>
+    <title>{% block title %}GritBoard{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
     // Set client date cookie ASAP on every page (even login) so server knows the local date
     (function(){
@@ -20,7 +21,7 @@
 <body>
     {% if current_user.is_authenticated %}
     <nav class="navbar">
-        <a href="{{ url_for('metrics.dashboard') }}" class="brand">Health Tracker</a>
+        <a href="{{ url_for('metrics.dashboard') }}" class="brand">GritBoard</a>
         <button class="nav-toggle" onclick="document.querySelector('.nav-links').classList.toggle('open')" aria-label="Menu">&#9776;</button>
         <div class="nav-links" onclick="if(event.target.tagName==='A'&&!event.target.classList.contains('nav-dd-toggle'))this.classList.remove('open')">
             <a href="{{ url_for('metrics.dashboard') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('metrics') }}">Metrics</a>
@@ -42,6 +43,9 @@
                 </div>
             </div>
             <a href="{{ url_for('settings.settings') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('settings') }}">Settings</a>
+            {% if current_user.is_admin %}
+            <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('admin') }}" style="color: #fbbf24;">Admin</a>
+            {% endif %}
             <a href="{{ url_for('auth.logout') }}">Logout</a>
         </div>
     </nav>
@@ -57,9 +61,48 @@
         {% block content %}{% endblock %}
     </div>
 
+    <script>
+    // Auto-inject CSRF token into all POST forms
+    document.addEventListener('DOMContentLoaded', function() {
+        document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(function(form) {
+            if (!form.querySelector('input[name="csrf_token"]')) {
+                var t = document.querySelector('meta[name="csrf-token"]');
+                if (t) {
+                    var inp = document.createElement('input');
+                    inp.type = 'hidden'; inp.name = 'csrf_token'; inp.value = t.content;
+                    form.appendChild(inp);
+                }
+            }
+        });
+    });
+    // Auto-attach CSRF token to fetch requests
+    (function(){
+        var _origFetch = window.fetch;
+        window.fetch = function(url, opts) {
+            opts = opts || {};
+            if (opts.method && opts.method.toUpperCase() !== 'GET') {
+                opts.headers = opts.headers || {};
+                if (opts.headers instanceof Headers) {
+                    if (!opts.headers.has('X-CSRFToken')) {
+                        var t = document.querySelector('meta[name="csrf-token"]');
+                        if (t) opts.headers.set('X-CSRFToken', t.content);
+                    }
+                } else {
+                    if (!opts.headers['X-CSRFToken']) {
+                        var t = document.querySelector('meta[name="csrf-token"]');
+                        if (t) opts.headers['X-CSRFToken'] = t.content;
+                    }
+                }
+            }
+            return _origFetch.call(this, url, opts);
+        };
+    })();
+    </script>
     {% if current_user.is_authenticated %}
     <script>
     (function(){
+        // Skip auto-detect on change-password page to avoid reload loops
+        if (location.pathname === '/change-password') return;
         // Auto-detect timezone
         var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
         if (tz && tz !== '{{ current_user.tz or "" }}') {
