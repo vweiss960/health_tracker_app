@@ -133,6 +133,22 @@ app.register_blueprint(motivation_bp, url_prefix='/motivation')
 app.register_blueprint(admin_bp, url_prefix='/admin')
 
 
+@app.route('/')
+def index():
+    from flask import redirect, url_for
+    return redirect(url_for('metrics.dashboard'))
+
+
+@app.route('/sw.js')
+def service_worker():
+    """Serve service worker from root scope."""
+    from flask import send_from_directory
+    response = send_from_directory(app.static_folder, 'sw.js')
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Service-Worker-Allowed'] = '/'
+    return response
+
+
 @app.context_processor
 def inject_helpers():
     today_val = g.client_date.isoformat() if hasattr(g, 'client_date') else date.today().isoformat()

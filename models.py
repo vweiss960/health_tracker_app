@@ -223,6 +223,20 @@ class UserSession(db.Model):
     user = db.relationship('User', backref=db.backref('sessions', lazy=True))
 
 
+class SavedPlaylist(db.Model):
+    __tablename__ = 'saved_playlists'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(300), nullable=False)
+    playlist_type = db.Column(db.String(20), default='playlist')  # playlist or video
+    youtube_id = db.Column(db.String(100), nullable=False)
+    thumbnail = db.Column(db.String(500))
+    channel = db.Column(db.String(200))
+    search_query = db.Column(db.String(300))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user = db.relationship('User', backref=db.backref('saved_playlists', lazy=True, cascade='all, delete-orphan'))
+
+
 class TrainingEntry(db.Model):
     __tablename__ = 'training_entries'
     id = db.Column(db.Integer, primary_key=True)

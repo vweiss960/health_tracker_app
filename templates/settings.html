@@ -98,6 +98,16 @@
     </form>
 </div>
 
+<div class="card" id="pwaInstallCard" style="display:none;">
+    <h2>Install App</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
+        Install GritBoard on your device for a native app experience — home screen icon, full-screen mode, and faster access.
+    </p>
+    <button type="button" id="pwaInstallBtn" class="btn btn-primary" onclick="installPWA()" style="display:none;">
+        Install GritBoard
+    </button>
+</div>
+
 <div class="card">
     <h2>Change Password</h2>
     <form method="POST" action="{{ url_for('settings.change_password') }}">
@@ -142,6 +152,20 @@
     if (!saved && browserTz) {
         sel.value = browserTz;
     }
+})();
+// Show PWA install card if install prompt is available
+(function() {
+    var card = document.getElementById('pwaInstallCard');
+    var btn = document.getElementById('pwaInstallBtn');
+    if (_gbInstallPrompt) {
+        card.style.display = 'block';
+        btn.style.display = 'inline-flex';
+    }
+    // Also listen in case the event fires after page load
+    window.addEventListener('beforeinstallprompt', function() {
+        card.style.display = 'block';
+        btn.style.display = 'inline-flex';
+    });
 })();
 function clearYtKey() {
     var inp = document.getElementById('yt-key-input');

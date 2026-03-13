@@ -1,5 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify
 from flask_login import login_required, current_user
+from models import db, SavedPlaylist
 
 resources_bp = Blueprint('resources', __name__)
 
@@ -8,7 +9,52 @@ resources_bp = Blueprint('resources', __name__)
 @login_required
 def resources_page():
     has_yt_key = bool(current_user.youtube_api_key)
-    return render_template('resources_music.html', has_yt_key=has_yt_key)
+    saved = SavedPlaylist.query.filter_by(user_id=current_user.id).order_by(SavedPlaylist.created_at.desc()).all()
+    return render_template('resources_music.html', has_yt_key=has_yt_key, saved_playlists=saved)
+
+
+@resources_bp.route('/api/save-playlist', methods=['POST'])
+@login_required
+def save_playlist():
+    data = request.get_json() or {}
+    youtube_id = data.get('id', '').strip()
+    title = data.get('title', '').strip()
+    if not youtube_id or not title:
+        return jsonify({'error': 'Missing playlist info'}), 400
+
+    existing = SavedPlaylist.query.filter_by(user_id=current_user.id, youtube_id=youtube_id).first()
+    if existing:
+        return jsonify({'error': 'Already saved'}), 409
+
+    sp = SavedPlaylist(
+        user_id=current_user.id,
+        title=title,
+        playlist_type=data.get('type', 'playlist'),
+        youtube_id=youtube_id,
+        thumbnail=data.get('thumbnail', ''),
+        channel=data.get('channel', ''),
+        search_query=data.get('query', ''),
+    )
+    db.session.add(sp)
+    db.session.commit()
+    return jsonify({'ok': True, 'id': sp.id})
+
+
+@resources_bp.route('/api/delete-playlist/<int:playlist_id>', methods=['POST'])
+@login_required
+def delete_playlist(playlist_id):
+    sp = SavedPlaylist.query.filter_by(id=playlist_id, user_id=current_user.id).first()
+    if not sp:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(sp)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@resources_bp.route('/player')
+@login_required
+def popup_player():
+    return render_template('resources_player.html')
 
 
 @resources_bp.route('/api/music-search', methods=['POST'])

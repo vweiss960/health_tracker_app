@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}GritBoard{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <meta name="theme-color" content="#c0392b">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/icon-192.png') }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <script>
     // Set client date cookie ASAP on every page (even login) so server knows the local date
@@ -128,6 +131,239 @@
     });
     </script>
     {% endif %}
+    <!-- Service worker + PWA install prompt -->
+    <script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(function(){});
+    }
+    // Capture the install prompt for Android — only fires on eligible devices
+    var _gbInstallPrompt = null;
+    window.addEventListener('beforeinstallprompt', function(e) {
+        e.preventDefault();
+        _gbInstallPrompt = e;
+        // Show install button if it exists on this page
+        var btn = document.getElementById('pwaInstallBtn');
+        if (btn) btn.style.display = 'inline-flex';
+    });
+    function installPWA() {
+        if (!_gbInstallPrompt) return;
+        _gbInstallPrompt.prompt();
+        _gbInstallPrompt.userChoice.then(function(result) {
+            _gbInstallPrompt = null;
+            var btn = document.getElementById('pwaInstallBtn');
+            if (btn) btn.style.display = 'none';
+        });
+    }
+    </script>
+    <!-- Persistent mini music player bar -->
+    <div id="miniPlayer" style="display:none; position:fixed; bottom:0; left:0; right:0; background:var(--card-bg, #1a1a1a); border-top:2px solid var(--accent, #c0392b); z-index:1000; padding:0.4rem 0.75rem; box-shadow:0 -2px 10px rgba(0,0,0,0.5);">
+        <div style="display:flex; align-items:center; gap:0.5rem; max-width:1200px; margin:0 auto;">
+            <!-- Track controls (shown in inline/mobile mode for playlists) -->
+            <div id="miniTrackControls" style="display:none; flex-shrink:0; gap:0.25rem;">
+                <button type="button" class="btn btn-sm" onclick="miniPlayerPrev()" style="background:var(--border, #333); padding:0.4rem 0.5rem; line-height:0;" title="Previous track"><svg width="20" height="16" viewBox="0 0 20 16"><polygon points="10,0 0,8 10,16" fill="#c0392b"/><polygon points="20,0 10,8 20,16" fill="#c0392b"/></svg></button>
+                <button type="button" class="btn btn-sm" onclick="miniPlayerNext()" style="background:var(--border, #333); padding:0.4rem 0.5rem; line-height:0;" title="Next track"><svg width="20" height="16" viewBox="0 0 20 16"><polygon points="0,0 10,8 0,16" fill="#c0392b"/><polygon points="10,0 20,8 10,16" fill="#c0392b"/></svg></button>
+            </div>
+            <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                <span style="font-size:0.75rem; color:var(--text-muted, #999);">Now Playing:</span>
+                <span id="miniPlayerTitle" style="font-size:0.85rem; margin-left:0.25rem;"></span>
+            </div>
+            <button type="button" class="btn btn-sm" onclick="showPopupPlayer()" id="miniShowPlayerBtn" style="background:var(--border); white-space:nowrap; font-size:0.75rem;">Show Player</button>
+            <a href="/resources" class="btn btn-sm" style="background:var(--border); white-space:nowrap; font-size:0.75rem;">Music Page</a>
+            <button type="button" class="btn btn-sm btn-danger" onclick="stopMusicGlobal()" style="padding:0.2rem 0.5rem; font-size:0.75rem;">Stop</button>
+        </div>
+        <!-- Hidden container for YT IFrame API player (inline/mobile mode) -->
+        <div id="miniPlayerWrap" style="position:absolute; left:-9999px; width:1px; height:1px; overflow:hidden;">
+            <div id="miniPlayerDiv"></div>
+        </div>
+    </div>
+    <!-- YouTube IFrame API (loaded once, used by inline mini player) -->
+    <script>
+    var tag = document.createElement('script');
+    tag.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(tag);
+    </script>
+    <script>
+    // Music player management.
+    // Mode stored in localStorage ('gb_music_mode'): 'popup' or 'inline'.
+    var _gbPopup = null;
+    var _gbYtPlayer = null;
+    var _gbYtApiReady = false;
+    var _gbYtPending = null; // queued play data if API not ready yet
+
+    function _gbGetMode() {
+        return localStorage.getItem('gb_music_mode') || '';
+    }
+
+    // YouTube IFrame API callback
+    function onYouTubeIframeAPIReady() {
+        _gbYtApiReady = true;
+        if (_gbYtPending) {
+            _gbStartMiniPlayer(_gbYtPending);
+            _gbYtPending = null;
+        }
+    }
+
+    // True if running as installed PWA (standalone mode)
+    var _gbIsStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+
+    function openPopupPlayer() {
+        var mode = _gbGetMode();
+        if (mode === 'inline') {
+            _gbLoadMiniFrame();
+            return;
+        }
+        if (_gbIsStandalone) {
+            localStorage.setItem('gb_music_mode', 'inline');
+            _gbLoadMiniFrame();
+            return;
+        }
+        if (mode === 'popup') {
+            try {
+                _gbPopup = window.open('/resources/player', 'gb_music_player', 'width=480,height=320,menubar=no,toolbar=no,location=no,status=no');
+            } catch(e) { _gbPopup = null; }
+            if (_gbPopup) _gbPopup.focus();
+            return;
+        }
+        try {
+            _gbPopup = window.open('/resources/player', 'gb_music_player', 'width=480,height=320,menubar=no,toolbar=no,location=no,status=no');
+        } catch(e) { _gbPopup = null; }
+        if (_gbPopup && !_gbPopup.closed) {
+            localStorage.setItem('gb_music_mode', 'popup');
+            _gbPopup.focus();
+        } else {
+            localStorage.setItem('gb_music_mode', 'inline');
+            _gbLoadMiniFrame();
+        }
+    }
+
+    function showPopupPlayer() {
+        if (_gbGetMode() === 'inline') { _gbLoadMiniFrame(); return; }
+        try {
+            if (_gbPopup && !_gbPopup.closed) {
+                _gbPopup.focus();
+                return;
+            }
+        } catch(e) {}
+        openPopupPlayer();
+    }
+
+    function _gbLoadMiniFrame() {
+        // Music page has its own inline player
+        var path = window.location.pathname;
+        if (path === '/resources' || path === '/resources/') return;
+        var data = localStorage.getItem('gb_music_playing');
+        if (!data) return;
+        try {
+            var p = JSON.parse(data);
+            if (p.id && p.type) {
+                _gbStartMiniPlayer(p);
+            }
+        } catch(e) {}
+    }
+
+    function _gbStartMiniPlayer(data) {
+        if (!_gbYtApiReady) {
+            _gbYtPending = data;
+            return;
+        }
+        // Destroy previous player and recreate the target div
+        if (_gbYtPlayer) {
+            try { _gbYtPlayer.destroy(); } catch(e) {}
+            _gbYtPlayer = null;
+        }
+        var wrap = document.getElementById('miniPlayerWrap');
+        var oldDiv = document.getElementById('miniPlayerDiv');
+        if (oldDiv) oldDiv.remove();
+        var div = document.createElement('div');
+        div.id = 'miniPlayerDiv';
+        wrap.appendChild(div);
+
+        var playerVars = { autoplay: 1, controls: 0 };
+        var opts = {
+            height: '1',
+            width: '1',
+            playerVars: playerVars,
+            events: {
+                onStateChange: function(e) {
+                    // Update track title when a new video starts playing
+                    if (e.data === YT.PlayerState.PLAYING && _gbYtPlayer) {
+                        try {
+                            var vd = _gbYtPlayer.getVideoData();
+                            if (vd && vd.title) {
+                                document.getElementById('miniPlayerTitle').textContent = vd.title;
+                            }
+                        } catch(ex) {}
+                    }
+                }
+            }
+        };
+
+        if (data.type === 'playlist') {
+            playerVars.listType = 'playlist';
+            playerVars.list = data.id;
+        } else {
+            opts.videoId = data.id;
+        }
+
+        _gbYtPlayer = new YT.Player('miniPlayerDiv', opts);
+
+        // Show track controls for playlists
+        var controls = document.getElementById('miniTrackControls');
+        if (controls) {
+            controls.style.display = (data.type === 'playlist') ? 'flex' : 'none';
+        }
+    }
+
+    function miniPlayerPrev() {
+        if (_gbYtPlayer && _gbYtPlayer.previousVideo) {
+            try { _gbYtPlayer.previousVideo(); } catch(e) {}
+        }
+    }
+
+    function miniPlayerNext() {
+        if (_gbYtPlayer && _gbYtPlayer.nextVideo) {
+            try { _gbYtPlayer.nextVideo(); } catch(e) {}
+        }
+    }
+
+    function stopMusicGlobal() {
+        localStorage.removeItem('gb_music_playing');
+        localStorage.removeItem('gb_music_mode');
+        // Destroy YT player
+        if (_gbYtPlayer) {
+            try { _gbYtPlayer.destroy(); } catch(e) {}
+            _gbYtPlayer = null;
+        }
+        // Try to close popup
+        try { if (_gbPopup && !_gbPopup.closed) _gbPopup.close(); } catch(e) {}
+        document.getElementById('miniPlayer').style.display = 'none';
+        document.getElementById('miniTrackControls').style.display = 'none';
+        document.body.style.paddingBottom = '';
+    }
+
+    // Show mini bar if music is playing (on non-music pages)
+    (function() {
+        var isMusPage = window.location.pathname === '/resources/' || window.location.pathname === '/resources';
+        if (isMusPage) return;
+        var playing = localStorage.getItem('gb_music_playing');
+        if (!playing) return;
+        try {
+            var p = JSON.parse(playing);
+            if (p.id && p.title) {
+                document.getElementById('miniPlayerTitle').textContent = p.title;
+                document.getElementById('miniPlayer').style.display = 'block';
+                document.body.style.paddingBottom = '3.5rem';
+                var mode = _gbGetMode();
+                if (mode === 'inline') {
+                    // Mobile/PWA: start YT API player in mini bar
+                    document.getElementById('miniShowPlayerBtn').style.display = 'none';
+                    _gbLoadMiniFrame();
+                }
+                // popup mode: do nothing — popup is already running independently
+            }
+        } catch(e) {}
+    })();
+    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
