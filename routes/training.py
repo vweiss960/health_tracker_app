@@ -39,10 +39,14 @@ def training_log():
     # What day is the viewed date?
     today_day_name = view_date.strftime('%A').lower()
 
+    # Build set of exercise names already logged today (for strikethrough)
+    logged_names = {e.exercise_name.lower() for e in entries}
+
     return render_template('training.html',
         entries=entries, view_date=view_date,
         plan_name=plan_name, ordered_plan=ordered_plan,
-        today_day_name=today_day_name)
+        today_day_name=today_day_name,
+        logged_names=logged_names)
 
 
 @training_bp.route('/add', methods=['POST'])
@@ -66,6 +70,105 @@ def add_training():
     db.session.add(entry)
     db.session.commit()
     return redirect(url_for('training.training_log', date=entry_date.isoformat()))
+
+
+@training_bp.route('/complete-exercises', methods=['POST'])
+@login_required
+def complete_exercises():
+    """Bulk-log selected plan exercises to the training log."""
+    date_str = request.form.get('date')
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
+
+    plan_ids = request.form.getlist('plan_ids')
+    if not plan_ids:
+        return redirect(url_for('training.training_log', date=entry_date.isoformat()))
+
+    exercises = TrainingPlan.query.filter(
+        TrainingPlan.id.in_(plan_ids),
+        TrainingPlan.user_id == current_user.id,
+        TrainingPlan.active == True,
+    ).all()
+
+    for ex in exercises:
+        # Parse minimum reps from range like "8-12" → 8
+        min_reps = None
+        if ex.reps:
+            try:
+                min_reps = int(str(ex.reps).split('-')[0].strip())
+            except (ValueError, IndexError):
+                pass
+
+        entry = TrainingEntry(
+            user_id=current_user.id,
+            date=entry_date,
+            exercise_name=ex.exercise_name,
+            category=ex.category,
+            sets=ex.sets,
+            reps=min_reps,
+            notes=f"From plan: {ex.sets}x{ex.reps}" if ex.sets and ex.reps else None,
+        )
+        db.session.add(entry)
+
+    db.session.commit()
+    return redirect(url_for('training.training_log', date=entry_date.isoformat()))
+
+
+@training_bp.route('/uncomplete-exercise', methods=['POST'])
+@login_required
+def uncomplete_exercise():
+    """Remove a logged exercise that came from the plan."""
+    date_str = request.form.get('date')
+    entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
+    exercise_name = request.form.get('exercise_name', '').strip()
+
+    if exercise_name:
+        entry = TrainingEntry.query.filter(
+            TrainingEntry.user_id == current_user.id,
+            TrainingEntry.date == entry_date,
+            db.func.lower(TrainingEntry.exercise_name) == exercise_name.lower(),
+        ).first()
+        if entry:
+            db.session.delete(entry)
+            db.session.commit()
+
+    return jsonify({'ok': True})
+
+
+@training_bp.route('/update/<int:entry_id>', methods=['POST'])
+@login_required
+def update_training(entry_id):
+    """Update a single field on a training entry."""
+    entry = TrainingEntry.query.get_or_404(entry_id)
+    if entry.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json() or {}
+    field = data.get('field')
+    value = data.get('value', '').strip()
+
+    allowed = {
+        'exercise_name': str,
+        'category': str,
+        'sets': 'int',
+        'reps': 'int',
+        'weight_used': 'float',
+        'duration_minutes': 'float',
+        'calories_burned': 'float',
+        'notes': str,
+    }
+
+    if field not in allowed:
+        return jsonify({'error': 'Invalid field'}), 400
+
+    if allowed[field] == 'int':
+        setattr(entry, field, _int_or_none(value) if value else None)
+    elif allowed[field] == 'float':
+        setattr(entry, field, _float_or_none(value) if value else None)
+    else:
+        setattr(entry, field, value or None)
+
+    db.session.commit()
+    return jsonify({'ok': True, 'value': str(getattr(entry, field) or '')})
 
 
 @training_bp.route('/delete/<int:entry_id>', methods=['POST'])

@@ -22,17 +22,20 @@
             <div class="plan-day-header">{{ day_name | capitalize }}{% if day_name == today_day_name %} <span style="font-size: 0.75rem; opacity: 0.8;">(today)</span>{% endif %}</div>
             <div class="plan-day-body">
             {% for ex in exercises %}
-                <div class="plan-exercise">
-                    <div class="plan-exercise-name">
-                        {{ ex.exercise_name }}
-                        <a href="#" class="what-is-this" onclick="lookupExercise('{{ ex.exercise_name | e }}'); return false;">What is this?</a>
+                <div class="plan-exercise plan-exercise-tappable {{ 'done' if ex.exercise_name.lower() in logged_names }}" data-plan-id="{{ ex.id }}" data-name="{{ ex.exercise_name }}" onclick="toggleExercise(this)">
+                    <div class="plan-exercise-check">&#10003;</div>
+                    <div class="plan-exercise-content">
+                        <div class="plan-exercise-name">
+                            {{ ex.exercise_name }}
+                            <a href="#" class="what-is-this" onclick="event.stopPropagation(); lookupExercise('{{ ex.exercise_name | e }}'); return false;">What is this?</a>
+                        </div>
+                        <div class="plan-exercise-detail">
+                            {% if ex.category %}<span class="plan-tag">{{ ex.category }}</span>{% endif %}
+                            {% if ex.sets and ex.reps %}{{ ex.sets }} x {{ ex.reps }}{% elif ex.sets %}{{ ex.sets }} sets{% elif ex.reps %}{{ ex.reps }}{% endif %}
+                            {% if ex.rest_seconds %}<span style="color: var(--text-muted);">| {{ ex.rest_seconds }}s rest</span>{% endif %}
+                        </div>
+                        {% if ex.notes %}<div class="plan-exercise-notes">{{ ex.notes }}</div>{% endif %}
                     </div>
-                    <div class="plan-exercise-detail">
-                        {% if ex.category %}<span class="plan-tag">{{ ex.category }}</span>{% endif %}
-                        {% if ex.sets and ex.reps %}{{ ex.sets }} x {{ ex.reps }}{% elif ex.sets %}{{ ex.sets }} sets{% elif ex.reps %}{{ ex.reps }}{% endif %}
-                        {% if ex.rest_seconds %}<span style="color: var(--text-muted);">| {{ ex.rest_seconds }}s rest</span>{% endif %}
-                    </div>
-                    {% if ex.notes %}<div class="plan-exercise-notes">{{ ex.notes }}</div>{% endif %}
                 </div>
             {% endfor %}
             </div>
@@ -58,16 +61,25 @@
     <span style="color: var(--text-muted); font-size: 0.9rem;">{{ view_date.strftime('%A, %B %d, %Y') }}</span>
 </div>
 
-<div class="card">
-    <h2>Log Exercise</h2>
-    <form method="POST" action="{{ url_for('training.add_training') }}">
-        <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
-        <div class="form-grid">
-            <div class="form-group" style="grid-column: span 2;">
+<div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem;">
+    <h2 style="margin: 0;">{{ view_date.strftime('%A') }}'s Workout</h2>
+    <button type="button" class="btn btn-primary" onclick="document.getElementById('exerciseModal').style.display='flex'">Add +</button>
+</div>
+
+<!-- Add Exercise Modal -->
+<div id="exerciseModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card single-item-modal">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+            <h2 style="margin-bottom: 0;">Add Exercise</h2>
+            <button type="button" class="btn btn-sm" onclick="document.getElementById('exerciseModal').style.display='none'" style="background: var(--border); line-height: 1; padding: 0.3rem 0.6rem;">&times;</button>
+        </div>
+        <form method="POST" action="{{ url_for('training.add_training') }}">
+            <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
+            <div class="form-group" style="margin-bottom: 0.6rem;">
                 <label>Exercise Name</label>
                 <input type="text" name="exercise_name" placeholder="e.g. Bench Press, Squats, Running" required>
             </div>
-            <div class="form-group">
+            <div class="form-group" style="margin-bottom: 0.6rem;">
                 <label>Category</label>
                 <select name="category">
                     <option value="chest">Chest</option>
@@ -80,51 +92,56 @@
                     <option value="other">Other</option>
                 </select>
             </div>
-            <div class="form-group">
-                <label>Sets</label>
-                <input type="number" name="sets" placeholder="e.g. 3">
+            <div class="single-item-macros">
+                <div class="form-group">
+                    <label>Sets</label>
+                    <input type="number" name="sets" placeholder="e.g. 3">
+                </div>
+                <div class="form-group">
+                    <label>Reps</label>
+                    <input type="number" name="reps" placeholder="e.g. 10">
+                </div>
+                <div class="form-group">
+                    <label>Weight</label>
+                    <input type="number" step="0.5" name="weight_used" placeholder="lbs/kg">
+                </div>
+                <div class="form-group">
+                    <label>Duration (min)</label>
+                    <input type="number" step="1" name="duration_minutes" placeholder="min">
+                </div>
+                <div class="form-group">
+                    <label>Calories</label>
+                    <input type="number" step="1" name="calories_burned" placeholder="kcal">
+                </div>
             </div>
-            <div class="form-group">
-                <label>Reps</label>
-                <input type="number" name="reps" placeholder="e.g. 10">
-            </div>
-            <div class="form-group">
-                <label>Weight Used</label>
-                <input type="number" step="0.5" name="weight_used" placeholder="lbs / kg">
-            </div>
-            <div class="form-group">
-                <label>Duration (min)</label>
-                <input type="number" step="1" name="duration_minutes" placeholder="minutes">
-            </div>
-            <div class="form-group">
-                <label>Calories Burned</label>
-                <input type="number" step="1" name="calories_burned" placeholder="kcal">
-            </div>
-            <div class="form-group form-full">
+            <div class="form-group" style="margin-top: 0.6rem;">
                 <label>Notes</label>
                 <input type="text" name="notes" placeholder="Optional notes">
             </div>
-        </div>
-        <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Add Exercise</button>
-    </form>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Add Exercise</button>
+                <button type="button" class="btn" onclick="document.getElementById('exerciseModal').style.display='none'" style="background: var(--border);">Cancel</button>
+            </div>
+        </form>
+    </div>
 </div>
 
+<div id="workout-log">
 {% if entries %}
 <div class="card">
-    <h2>{{ view_date.strftime('%A') }}'s Workout</h2>
     <div class="table-wrap">
     <table>
         <thead><tr><th>Exercise</th><th>Category</th><th>Sets</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Cal</th><th></th></tr></thead>
         <tbody>
         {% for e in entries %}
-        <tr>
-            <td>{{ e.exercise_name }}</td>
-            <td>{{ e.category or '-' }}</td>
-            <td>{{ e.sets or '-' }}</td>
-            <td>{{ e.reps or '-' }}</td>
-            <td>{{ e.weight_used or '-' }}</td>
-            <td>{{ e.duration_minutes or '-' }}</td>
-            <td>{{ e.calories_burned or '-' }}</td>
+        <tr data-entry-id="{{ e.id }}">
+            <td class="editable" data-field="exercise_name" data-type="text">{{ e.exercise_name }}</td>
+            <td class="editable" data-field="category" data-type="select">{{ e.category or '-' }}</td>
+            <td class="editable" data-field="sets" data-type="number">{{ e.sets or '-' }}</td>
+            <td class="editable" data-field="reps" data-type="number">{{ e.reps or '-' }}</td>
+            <td class="editable" data-field="weight_used" data-type="number" data-step="0.5">{{ e.weight_used or '-' }}</td>
+            <td class="editable" data-field="duration_minutes" data-type="number">{{ e.duration_minutes or '-' }}</td>
+            <td class="editable" data-field="calories_burned" data-type="number">{{ e.calories_burned or '-' }}</td>
             <td>
                 <form method="POST" action="{{ url_for('training.delete_training', entry_id=e.id) }}" style="display:inline;">
                     <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
@@ -137,6 +154,7 @@
     </div>
 </div>
 {% endif %}
+</div>
 {% endblock %}
 
 {% block scripts %}
@@ -150,6 +168,115 @@ if (!new URLSearchParams(window.location.search).has('date')) {
         window.location.replace(window.location.pathname + '?date=' + localDate);
     }
 }
+
+function toggleExercise(el) {
+    if (el.classList.contains('logging')) return;
+    el.classList.add('logging');
+
+    var isDone = el.classList.contains('done');
+    var formData = new FormData();
+    formData.append('date', '{{ view_date.isoformat() }}');
+
+    var url;
+    if (isDone) {
+        // Undo: remove from log
+        url = '{{ url_for("training.uncomplete_exercise") }}';
+        formData.append('exercise_name', el.dataset.name);
+    } else {
+        // Log it
+        url = '{{ url_for("training.complete_exercises") }}';
+        formData.append('plan_ids', el.dataset.planId);
+    }
+
+    fetch(url, {
+        method: 'POST',
+        body: formData,
+        redirect: 'manual'
+    }).then(function() {
+        el.classList.remove('logging');
+        el.classList.toggle('done');
+        refreshLog();
+    }).catch(function() {
+        el.classList.remove('logging');
+    });
+}
+
+function refreshLog() {
+    fetch(window.location.href).then(function(r) { return r.text(); }).then(function(html) {
+        var parser = new DOMParser();
+        var doc = parser.parseFromString(html, 'text/html');
+        // Replace the workout table area
+        var newContent = doc.querySelector('#workout-log');
+        var oldContent = document.querySelector('#workout-log');
+        if (newContent && oldContent) oldContent.innerHTML = newContent.innerHTML;
+    });
+}
+
+// Close modal on overlay click
+document.querySelectorAll('.modal-overlay').forEach(function(m) {
+    m.addEventListener('click', function(e) {
+        if (e.target === this) this.style.display = 'none';
+    });
+});
+
+// Inline editing for exercise log
+var CATEGORIES = ['chest','back','legs','shoulders','arms','core','cardio','other'];
+
+document.addEventListener('click', function(e) {
+    var cell = e.target.closest('td.editable');
+    if (!cell || cell.querySelector('input, select')) return;
+
+    var row = cell.closest('tr');
+    var entryId = row.dataset.entryId;
+    var field = cell.dataset.field;
+    var type = cell.dataset.type;
+    var current = cell.textContent.trim();
+    if (current === '-') current = '';
+
+    var input;
+    if (type === 'select' && field === 'category') {
+        input = document.createElement('select');
+        CATEGORIES.forEach(function(cat) {
+            var opt = document.createElement('option');
+            opt.value = cat;
+            opt.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
+            if (cat === current.toLowerCase()) opt.selected = true;
+            input.appendChild(opt);
+        });
+    } else {
+        input = document.createElement('input');
+        input.type = type === 'number' ? 'number' : 'text';
+        if (cell.dataset.step) input.step = cell.dataset.step;
+        input.value = current;
+    }
+
+    input.className = 'inline-edit';
+    cell.textContent = '';
+    cell.appendChild(input);
+    input.focus();
+    if (input.select) input.select();
+
+    function save() {
+        var val = input.value.trim();
+        var displayVal = val || '-';
+
+        fetch('/training/update/' + entryId, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({field: field, value: val})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            cell.textContent = data.value || '-';
+        }).catch(function() {
+            cell.textContent = displayVal;
+        });
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { cell.textContent = current || '-'; }
+    });
+});
 
 function lookupExercise(name) {
     fetch(`{{ url_for('training.exercise_video') }}?name=${encodeURIComponent(name)}`)
