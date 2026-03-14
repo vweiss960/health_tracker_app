@@ -13,7 +13,14 @@
             </div>
             <div class="form-group" style="grid-column: span 2;">
                 <label>Photo</label>
-                <input type="file" name="photo" accept="image/*" required>
+                <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                    <input type="file" name="photo" accept="image/*" id="photoFileInput" required style="flex: 1; min-width: 0;">
+                    <button type="button" class="btn btn-success btn-sm" onclick="openCamera()" style="white-space: nowrap;">Take Photo</button>
+                </div>
+                <input type="file" accept="image/*" capture="environment" id="cameraInput" style="display:none;">
+                <div id="photoPreview" style="margin-top: 0.5rem; display: none;">
+                    <img id="photoPreviewImg" style="max-width: 200px; max-height: 150px; border-radius: 4px;">
+                </div>
             </div>
             <div class="form-group" style="grid-column: span 2;">
                 <label>Caption (optional)</label>
@@ -66,6 +73,37 @@
     const localDate = _n.getFullYear() + '-' + String(_n.getMonth()+1).padStart(2,'0') + '-' + String(_n.getDate()).padStart(2,'0');
     document.querySelectorAll('input[type="date"]').forEach(el => { if (el.value !== localDate) el.value = localDate; });
 })();
+
+// --- Camera capture ---
+function openCamera() {
+    document.getElementById('cameraInput').click();
+}
+
+document.getElementById('cameraInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+        // Copy the camera file to the main file input via DataTransfer
+        var dt = new DataTransfer();
+        dt.items.add(this.files[0]);
+        document.getElementById('photoFileInput').files = dt.files;
+        showPreview(this.files[0]);
+    }
+});
+
+document.getElementById('photoFileInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) {
+        showPreview(this.files[0]);
+    }
+});
+
+function showPreview(file) {
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        var img = document.getElementById('photoPreviewImg');
+        img.src = e.target.result;
+        document.getElementById('photoPreview').style.display = 'block';
+    };
+    reader.readAsDataURL(file);
+}
 
 function openPhotoModal(src, caption, dateStr) {
     document.getElementById('photoModalImg').src = src;

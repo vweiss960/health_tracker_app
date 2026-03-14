@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block title %}Food Log - GritBoard{% endblock %}
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+{% endblock %}
 {% block content %}
 <h1 style="margin-bottom: 1rem;">Food Log</h1>
 
@@ -54,6 +57,8 @@
                 <button type="button" onclick="showPanel('singleItem')">Add Single Item</button>
                 <button type="button" onclick="showPanel('commonMeal')">Add Common Meal</button>
                 <button type="button" onclick="showPanel('commonFood')">Add Common Food Item</button>
+                <button type="button" onclick="showPanel('foodPhoto')">Snap Food Photo (AI)</button>
+                <button type="button" onclick="showPanel('barcode')">Scan Barcode</button>
                 <button type="button" onclick="showPanel('water')">Add Water</button>
                 <button type="button" onclick="showPanel('caffeine')">Add Caffeine</button>
             </div>
@@ -111,6 +116,67 @@
             </div>
         </div>
         <div id="commonFoodList" style="margin-bottom: 0.75rem;">Loading...</div>
+    </div>
+
+    <!-- Food Photo AI Panel -->
+    <div id="panel-foodPhoto" class="add-panel" style="display:none;">
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Take a photo of your food and AI will estimate the calories and macros.</p>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('foodCameraInput').click()">Take Photo</button>
+            <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="document.getElementById('foodFileInput').click()">Choose from Gallery</button>
+        </div>
+        <input type="file" accept="image/*" capture="environment" id="foodCameraInput" style="display:none;">
+        <input type="file" accept="image/*" id="foodFileInput" style="display:none;">
+        <div id="foodPhotoPreview" style="display:none; margin-bottom: 0.75rem;">
+            <img id="foodPhotoPreviewImg" style="max-width: 300px; max-height: 200px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="margin-top: 0.5rem;">
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label>Meal Type</label>
+                    <select id="foodPhotoMealType">
+                        <option value="breakfast">Breakfast</option>
+                        <option value="lunch">Lunch</option>
+                        <option value="dinner">Dinner</option>
+                        <option value="snack">Snack</option>
+                    </select>
+                </div>
+                <button type="button" class="btn btn-success" id="analyzePhotoBtn" onclick="analyzeFood()">Analyze with AI</button>
+            </div>
+        </div>
+        <div id="foodPhotoLoading" style="display:none; color: var(--text-muted);">
+            Analyzing your food... this may take a few seconds.
+        </div>
+        <div id="foodPhotoResults" style="display:none;">
+            <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem;">AI Estimates <span style="font-size: 0.75rem; color: var(--text-muted);">(review and edit before adding)</span></h3>
+            <div id="foodPhotoItemsList"></div>
+            <div style="margin-top: 0.75rem; padding: 0.5rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);">
+                <strong>Total:</strong> <span id="foodPhotoTotal"></span>
+            </div>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-primary" onclick="addAllAnalyzedItems()">Add All to Food Log</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="clearFoodPhoto()">Clear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Barcode Scanner Modal -->
+    <div id="barcodeScannerModal" class="modal-overlay" style="display:none;">
+        <div class="modal-content card" style="max-width: 450px; width: 90%; max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+                <h2 style="margin-bottom: 0;">Scan Barcode</h2>
+                <button type="button" class="btn btn-sm" onclick="closeBarcodeModal()" style="background: var(--border); line-height: 1; padding: 0.3rem 0.6rem;">&times;</button>
+            </div>
+            <p style="color: var(--text-muted); margin-bottom: 0.75rem; font-size: 0.85rem;">Point your camera at a barcode to look up nutrition info.</p>
+            <div id="barcode-reader" style="width: 100%; border-radius: var(--radius); overflow: hidden;"></div>
+            <div id="barcode-status" style="display:none; color: var(--text-muted); margin-top: 0.5rem; text-align: center;"></div>
+            <div style="margin-top: 0.75rem;">
+                <label style="font-size: 0.85rem; color: var(--text-muted);">Or enter barcode manually:</label>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.25rem;">
+                    <input type="text" id="manualBarcode" placeholder="e.g. 0123456789012" style="flex: 1;">
+                    <button type="button" class="btn btn-primary btn-sm" onclick="lookupBarcode(document.getElementById('manualBarcode').value)">Look Up</button>
+                </div>
+            </div>
+            <div id="barcode-result" style="display: none; margin-top: 1rem;"></div>
+        </div>
     </div>
 
     <!-- Water Panel -->
@@ -444,11 +510,25 @@ document.addEventListener('click', function(e) {
 function showPanel(name) {
     document.getElementById('addMenu').style.display = 'none';
 
+    // Stop barcode scanner when leaving barcode panel
+    if (typeof html5QrCode !== 'undefined' && html5QrCode) {
+        html5QrCode.stop().catch(function(){});
+        html5QrCode = null;
+    }
+
     // Single item opens as a modal popup
     if (name === 'singleItem') {
         document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
         document.getElementById('singleItemModal').style.display = 'flex';
         document.getElementById('foodName').focus();
+        return;
+    }
+
+    // Barcode opens as a centered modal popup
+    if (name === 'barcode') {
+        document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
+        document.getElementById('barcodeScannerModal').style.display = 'flex';
+        startBarcodeScanner();
         return;
     }
 
@@ -502,7 +582,10 @@ function closeModal(id) {
 // Close modal on overlay click
 document.querySelectorAll('.modal-overlay').forEach(m => {
     m.addEventListener('click', function(e) {
-        if (e.target === this) this.style.display = 'none';
+        if (e.target === this) {
+            if (this.id === 'barcodeScannerModal') { closeBarcodeModal(); return; }
+            this.style.display = 'none';
+        }
     });
 });
 
@@ -584,7 +667,9 @@ function addCommonFoodItem(el) {
     form.method = 'POST';
     form.action = '{{ url_for("food.add_food") }}';
     form.style.display = 'none';
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
     const fields = {
+        csrf_token: csrfToken,
         date: viewDate, meal_type: mealType,
         food_name: el.dataset.name, serving_size: el.dataset.serving,
         calories: el.dataset.cal, protein: el.dataset.protein,
@@ -725,6 +810,334 @@ function lookupCalorieNinjas() {
     const food = getFoodQuery();
     if (!food) return;
     doLookup(document.getElementById('cnLookupBtn'), 'CalorieNinjas', '{{ url_for("food.calorieninjas_lookup") }}', food);
+}
+
+// --- Food Photo AI Analysis ---
+var foodPhotoFile = null;
+
+document.getElementById('foodCameraInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) handleFoodPhotoSelect(this.files[0]);
+});
+document.getElementById('foodFileInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) handleFoodPhotoSelect(this.files[0]);
+});
+
+function handleFoodPhotoSelect(file) {
+    foodPhotoFile = file;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+        document.getElementById('foodPhotoPreviewImg').src = e.target.result;
+        document.getElementById('foodPhotoPreview').style.display = 'block';
+        document.getElementById('foodPhotoResults').style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+}
+
+function analyzeFood() {
+    if (!foodPhotoFile) { alert('Please take or select a photo first.'); return; }
+    var btn = document.getElementById('analyzePhotoBtn');
+    btn.disabled = true;
+    btn.textContent = 'Analyzing...';
+    document.getElementById('foodPhotoLoading').style.display = 'block';
+    document.getElementById('foodPhotoResults').style.display = 'none';
+
+    var formData = new FormData();
+    formData.append('photo', foodPhotoFile);
+
+    fetch('{{ url_for("food.analyze_food_photo") }}', {
+        method: 'POST',
+        body: formData
+    })
+    .then(function(r) {
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'Analysis failed'); });
+        return r.json();
+    })
+    .then(function(data) {
+        btn.disabled = false;
+        btn.textContent = 'Analyze with AI';
+        document.getElementById('foodPhotoLoading').style.display = 'none';
+        displayFoodPhotoResults(data.result);
+    })
+    .catch(function(err) {
+        btn.disabled = false;
+        btn.textContent = 'Analyze with AI';
+        document.getElementById('foodPhotoLoading').style.display = 'none';
+        alert(err.message || 'Food analysis failed. Check your API key in Settings.');
+    });
+}
+
+function displayFoodPhotoResults(result) {
+    var items = result.items || [];
+    var total = result.total || {};
+    var listEl = document.getElementById('foodPhotoItemsList');
+
+    listEl.innerHTML = items.map(function(item, i) {
+        return '<div style="padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem;">' +
+            '<div style="display: flex; justify-content: space-between; align-items: center;">' +
+                '<strong>' + (item.food_name || 'Item ' + (i+1)) + '</strong>' +
+                '<span style="font-size: 0.8rem; color: var(--text-muted);">' + (item.serving_size || '') + '</span>' +
+            '</div>' +
+            '<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem;">' +
+                (item.calories || 0) + ' cal | ' +
+                (item.protein || 0) + 'g P | ' +
+                (item.carbs || 0) + 'g C | ' +
+                (item.fat || 0) + 'g F | ' +
+                (item.fiber || 0) + 'g fiber' +
+            '</div>' +
+        '</div>';
+    }).join('');
+
+    document.getElementById('foodPhotoTotal').textContent =
+        (total.calories || 0) + ' cal | ' +
+        (total.protein || 0) + 'g P | ' +
+        (total.carbs || 0) + 'g C | ' +
+        (total.fat || 0) + 'g F | ' +
+        (total.fiber || 0) + 'g fiber';
+
+    // Store results for adding
+    window._foodPhotoItems = items;
+    document.getElementById('foodPhotoResults').style.display = 'block';
+}
+
+function addAllAnalyzedItems() {
+    var items = window._foodPhotoItems || [];
+    if (!items.length) return;
+    var mealType = document.getElementById('foodPhotoMealType').value;
+
+    var promises = items.map(function(item) {
+        return fetch('{{ url_for("food.add_food") }}', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({
+                date: viewDate, meal_type: mealType,
+                food_name: item.food_name || 'Unknown food',
+                serving_size: item.serving_size || '',
+                calories: item.calories || '', protein: item.protein || '',
+                carbs: item.carbs || '', fat: item.fat || '', fiber: item.fiber || ''
+            }),
+            redirect: 'manual'
+        });
+    });
+    Promise.all(promises).then(function() { location.reload(); });
+}
+
+function clearFoodPhoto() {
+    foodPhotoFile = null;
+    document.getElementById('foodPhotoPreview').style.display = 'none';
+    document.getElementById('foodPhotoResults').style.display = 'none';
+    document.getElementById('foodCameraInput').value = '';
+    document.getElementById('foodFileInput').value = '';
+    window._foodPhotoItems = [];
+}
+
+// --- Barcode Scanner ---
+function closeBarcodeModal() {
+    if (html5QrCode) {
+        html5QrCode.stop().catch(function(){});
+        html5QrCode = null;
+    }
+    document.getElementById('barcodeScannerModal').style.display = 'none';
+}
+
+var html5QrCode = null;
+
+function startBarcodeScanner() {
+    if (html5QrCode) return;
+    var statusEl = document.getElementById('barcode-status');
+    statusEl.style.display = 'block';
+    statusEl.textContent = 'Starting camera...';
+
+    html5QrCode = new Html5Qrcode("barcode-reader");
+    html5QrCode.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: { width: 250, height: 150 } },
+        function onScanSuccess(decodedText) {
+            html5QrCode.stop().then(function() { html5QrCode = null; });
+            statusEl.textContent = 'Barcode detected: ' + decodedText;
+            lookupBarcode(decodedText);
+        },
+        function onScanFailure(error) { /* ignore scan failures */ }
+    ).then(function() {
+        statusEl.textContent = 'Point camera at a barcode...';
+    }).catch(function(err) {
+        statusEl.style.display = 'none';
+        document.getElementById('barcode-reader').innerHTML =
+            '<p style="color: var(--warning);">Camera access unavailable. Use manual entry below.</p>';
+        html5QrCode = null;
+    });
+}
+
+function lookupBarcode(barcode) {
+    barcode = (barcode || '').trim();
+    if (!barcode) return;
+    var resultDiv = document.getElementById('barcode-result');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<p style="color: var(--text-muted);">Looking up barcode ' + barcode + '...</p>';
+
+    fetch('{{ url_for("food.barcode_lookup") }}?barcode=' + encodeURIComponent(barcode))
+    .then(function(r) {
+        var contentType = r.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            if (r.redirected || r.url.includes('/login')) {
+                throw new Error('Session expired. Please refresh the page and log in again.');
+            }
+            throw new Error('Lookup failed — server returned an unexpected response. Please try again.');
+        }
+        if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'Lookup failed'); });
+        return r.json();
+    })
+    .then(function(data) {
+        var p = data.product;
+        var n = p.nutrients;
+        var imgHtml = p.image_url ?
+            '<img src="' + p.image_url + '" style="width: 60px; height: 60px; object-fit: contain; border-radius: 4px; border: 1px solid var(--border);">' : '';
+
+        resultDiv.innerHTML =
+            '<div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem;">' +
+                '<div style="display: flex; gap: 0.75rem; align-items: center; margin-bottom: 0.5rem;">' +
+                    imgHtml +
+                    '<div>' +
+                        '<strong style="font-size: 1rem;">' + (p.name || 'Unknown') + '</strong>' +
+                        (p.brand ? '<div style="font-size: 0.8rem; color: var(--text-muted);">' + p.brand + '</div>' : '') +
+                        '<div style="font-size: 0.8rem; color: var(--text-muted);">Per 100g: ' + n.calories + ' cal | ' + n.protein + 'g P | ' + n.carbs + 'g C | ' + n.fat + 'g F | ' + n.fiber + 'g fiber</div>' +
+                    '</div>' +
+                '</div>' +
+                '<div class="form-group" style="margin-bottom: 0.5rem;">' +
+                    '<label style="font-weight: 600;">Serving Size (g)</label>' +
+                    '<div style="display: flex; align-items: center; gap: 0.75rem;">' +
+                        '<input type="range" id="barcodeServingSlider" min="1" max="500" value="100" style="flex: 1;" oninput="updateBarcodeNutrition(this.value)">' +
+                        '<input type="number" id="barcodeServingInput" min="1" max="9999" value="100" style="width: 70px;" oninput="updateBarcodeNutrition(this.value)">' +
+                        '<span style="color: var(--text-muted); font-size: 0.85rem;">g</span>' +
+                    '</div>' +
+                '</div>' +
+                '<div id="barcodeAdjustedNutrition" style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; padding: 0.5rem; background: var(--bg-muted, #f5f5f5); border-radius: var(--radius);">' +
+                    n.calories + ' cal | ' + n.protein + 'g P | ' + n.carbs + 'g C | ' + n.fat + 'g F | ' + n.fiber + 'g fiber' +
+                '</div>' +
+                '<div class="form-group" style="margin-bottom: 0.5rem;">' +
+                    '<label>Meal Type</label>' +
+                    '<select id="barcodeMealType">' +
+                        '<option value="breakfast">Breakfast</option><option value="lunch">Lunch</option>' +
+                        '<option value="dinner">Dinner</option><option value="snack">Snack</option>' +
+                    '</select>' +
+                '</div>' +
+                '<button type="button" class="btn btn-primary" onclick="addBarcodeItem()">Add to Food Log</button>' +
+            '</div>';
+
+        // Store for adding
+        window._barcodeProduct = p;
+    })
+    .catch(function(err) {
+        document.getElementById('manualBarcode').value = barcode;
+        resultDiv.innerHTML =
+            '<p style="color: var(--danger); margin-bottom: 0.75rem;">' + (err.message || 'Lookup failed') + '</p>' +
+            '<div style="border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem;">' +
+                '<strong style="font-size: 0.95rem;">Add manually for barcode: ' + barcode + '</strong>' +
+                '<div class="form-group" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">' +
+                    '<label>Product Name</label>' +
+                    '<input type="text" id="barcodeManualName" placeholder="e.g. Protein Bar">' +
+                '</div>' +
+                '<div class="form-group" style="margin-bottom: 0.5rem;">' +
+                    '<label>Brand (optional)</label>' +
+                    '<input type="text" id="barcodeManualBrand" placeholder="e.g. Kind">' +
+                '</div>' +
+                '<div class="form-group" style="margin-bottom: 0.5rem;">' +
+                    '<label>Serving Size</label>' +
+                    '<input type="text" id="barcodeManualServing" placeholder="e.g. 40g" value="100g">' +
+                '</div>' +
+                '<p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Enter nutrition per 100g (check the label and scale if needed):</p>' +
+                '<div class="form-grid" style="gap: 0.4rem;">' +
+                    '<div class="form-group"><label>Calories</label><input type="number" id="barcodeManualCal" step="any" placeholder="0"></div>' +
+                    '<div class="form-group"><label>Protein (g)</label><input type="number" id="barcodeManualProtein" step="any" placeholder="0"></div>' +
+                    '<div class="form-group"><label>Carbs (g)</label><input type="number" id="barcodeManualCarbs" step="any" placeholder="0"></div>' +
+                    '<div class="form-group"><label>Fat (g)</label><input type="number" id="barcodeManualFat" step="any" placeholder="0"></div>' +
+                    '<div class="form-group"><label>Fiber (g)</label><input type="number" id="barcodeManualFiber" step="any" placeholder="0"></div>' +
+                '</div>' +
+                '<div class="form-group" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">' +
+                    '<label>Meal Type</label>' +
+                    '<select id="barcodeManualMealType">' +
+                        '<option value="breakfast">Breakfast</option><option value="lunch">Lunch</option>' +
+                        '<option value="dinner">Dinner</option><option value="snack">Snack</option>' +
+                    '</select>' +
+                '</div>' +
+                '<button type="button" class="btn btn-primary" onclick="addManualBarcodeItem(\'' + barcode + '\')">Add to Food Log &amp; Save</button>' +
+            '</div>';
+    });
+}
+
+function updateBarcodeNutrition(grams) {
+    grams = parseFloat(grams) || 0;
+    // Keep slider and input in sync
+    var slider = document.getElementById('barcodeServingSlider');
+    var input = document.getElementById('barcodeServingInput');
+    if (document.activeElement !== slider) slider.value = Math.min(grams, 500);
+    if (document.activeElement !== input) input.value = grams;
+
+    var p = window._barcodeProduct;
+    if (!p) return;
+    var n = p.nutrients;
+    var factor = grams / 100;
+
+    var cal = (n.calories * factor).toFixed(1);
+    var pro = (n.protein * factor).toFixed(1);
+    var carb = (n.carbs * factor).toFixed(1);
+    var fat = (n.fat * factor).toFixed(1);
+    var fib = (n.fiber * factor).toFixed(1);
+
+    document.getElementById('barcodeAdjustedNutrition').innerHTML =
+        cal + ' cal | ' + pro + 'g P | ' + carb + 'g C | ' + fat + 'g F | ' + fib + 'g fiber';
+}
+
+function addBarcodeItem() {
+    var p = window._barcodeProduct;
+    if (!p) return;
+    var mealType = document.getElementById('barcodeMealType').value;
+    var n = p.nutrients;
+    var grams = parseFloat(document.getElementById('barcodeServingInput').value) || 100;
+    var factor = grams / 100;
+
+    fetch('{{ url_for("food.add_food") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+            date: viewDate, meal_type: mealType,
+            food_name: (p.name || 'Unknown') + (p.brand ? ' (' + p.brand + ')' : ''),
+            serving_size: grams + 'g',
+            calories: ((n.calories * factor) || 0).toFixed(1),
+            protein: ((n.protein * factor) || 0).toFixed(1),
+            carbs: ((n.carbs * factor) || 0).toFixed(1),
+            fat: ((n.fat * factor) || 0).toFixed(1),
+            fiber: ((n.fiber * factor) || 0).toFixed(1)
+        }),
+        redirect: 'manual'
+    }).then(function() { location.reload(); });
+}
+
+function addManualBarcodeItem(barcode) {
+    var name = document.getElementById('barcodeManualName').value.trim();
+    if (!name) { alert('Please enter a product name.'); return; }
+    var brand = document.getElementById('barcodeManualBrand').value.trim();
+    var serving = document.getElementById('barcodeManualServing').value.trim() || '100g';
+    var cal = parseFloat(document.getElementById('barcodeManualCal').value) || 0;
+    var protein = parseFloat(document.getElementById('barcodeManualProtein').value) || 0;
+    var carbs = parseFloat(document.getElementById('barcodeManualCarbs').value) || 0;
+    var fat = parseFloat(document.getElementById('barcodeManualFat').value) || 0;
+    var fiber = parseFloat(document.getElementById('barcodeManualFiber').value) || 0;
+    var mealType = document.getElementById('barcodeManualMealType').value;
+
+    fetch('{{ url_for("food.barcode_manual_add") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            barcode: barcode, date: viewDate, meal_type: mealType,
+            product_name: name, brand: brand, serving_size: serving,
+            calories: cal, protein: protein, carbs: carbs, fat: fat, fiber: fiber
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) location.reload();
+        else alert(data.error || 'Failed to add.');
+    });
 }
 
 function lookupAI() {

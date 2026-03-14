@@ -301,6 +301,23 @@ class StrengthEntry(db.Model):
         return round(self.estimated_1rm / self.body_weight, 2)
 
 
+class BarcodeCache(db.Model):
+    """Local cache of barcode nutrition lookups to avoid slow external API calls."""
+    __tablename__ = 'barcode_cache'
+    id = db.Column(db.Integer, primary_key=True)
+    barcode = db.Column(db.String(50), unique=True, nullable=False, index=True)
+    product_name = db.Column(db.String(300))
+    brand = db.Column(db.String(200))
+    serving_size = db.Column(db.String(100))
+    calories_per_100g = db.Column(db.Float)
+    protein_per_100g = db.Column(db.Float)
+    carbs_per_100g = db.Column(db.Float)
+    fat_per_100g = db.Column(db.Float)
+    fiber_per_100g = db.Column(db.Float)
+    image_url = db.Column(db.String(500))
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class TrainingEntry(db.Model):
     __tablename__ = 'training_entries'
     id = db.Column(db.Integer, primary_key=True)

@@ -166,7 +166,7 @@ def _set_security_headers(response):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.youtube.com https://s.ytimg.com; "
         "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: https://i.ytimg.com https://lh3.googleusercontent.com https://yt3.ggpht.com; "
+        "img-src 'self' data: blob: https://i.ytimg.com https://lh3.googleusercontent.com https://yt3.ggpht.com https://images.openfoodfacts.org; "
         "frame-src https://www.youtube.com https://www.youtube-nocookie.com; "
         "connect-src 'self'; "
         "font-src 'self'; "

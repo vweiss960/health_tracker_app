@@ -1,6 +1,6 @@
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
-from models import db, FoodEntry, CommonMeal, CommonMealItem, WaterEntry, CaffeineEntry
+from models import db, FoodEntry, CommonMeal, CommonMealItem, WaterEntry, CaffeineEntry, BarcodeCache
 from datetime import datetime, date
 from app import user_today
 
@@ -557,6 +557,214 @@ def caffeine_summary():
         'total_mg': round(float(r.total_mg or 0), 1),
         'entries': r.count,
     } for r in results])
+
+
+@food_bp.route('/api/analyze-food-photo', methods=['POST'])
+@login_required
+def analyze_food_photo():
+    """Send a food photo to Claude vision API for calorie/macro estimation."""
+    import base64
+    import json as _json
+    import re as _re
+
+    if 'photo' not in request.files:
+        return jsonify({'error': 'No photo provided'}), 400
+
+    file = request.files['photo']
+    if not file or file.filename == '':
+        return jsonify({'error': 'No photo provided'}), 400
+
+    image_data = base64.standard_b64encode(file.read()).decode('utf-8')
+    media_type = file.content_type or 'image/jpeg'
+
+    # Resolve AI key (same pattern as ai_chat.py)
+    from models import SystemConfig
+    ai_key = current_user.ai_api_key
+    if not ai_key and current_user.use_system_ai_key:
+        ai_key = SystemConfig.get('system_ai_api_key')
+
+    if not ai_key:
+        return jsonify({'error': 'No AI API key configured. Add one in Settings.'}), 400
+
+    provider = current_user.ai_provider or 'claude'
+
+    try:
+        if provider == 'openai':
+            import openai
+            client = openai.OpenAI(api_key=ai_key)
+            response = client.chat.completions.create(
+                model="gpt-4o",
+                max_tokens=1024,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image_url", "image_url": {"url": f"data:{media_type};base64,{image_data}"}},
+                        {"type": "text", "text": "Analyze this food photo. Identify each food item visible and estimate the nutritional content. Return ONLY a JSON object with this structure: {\"items\": [{\"food_name\": \"...\", \"serving_size\": \"...\", \"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0, \"fiber\": 0}], \"total\": {\"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0, \"fiber\": 0}}. Be as accurate as possible with portion estimation based on visual cues. No other text."}
+                    ]
+                }]
+            )
+            reply = response.choices[0].message.content
+        else:
+            import anthropic
+            client = anthropic.Anthropic(api_key=ai_key)
+            response = client.messages.create(
+                model="claude-sonnet-4-20250514",
+                max_tokens=1024,
+                messages=[{
+                    "role": "user",
+                    "content": [
+                        {"type": "image", "source": {"type": "base64", "media_type": media_type, "data": image_data}},
+                        {"type": "text", "text": "Analyze this food photo. Identify each food item visible and estimate the nutritional content. Return ONLY a JSON object with this structure: {\"items\": [{\"food_name\": \"...\", \"serving_size\": \"...\", \"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0, \"fiber\": 0}], \"total\": {\"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0, \"fiber\": 0}}. Be as accurate as possible with portion estimation based on visual cues. No other text."}
+                    ]
+                }]
+            )
+            reply = response.content[0].text
+
+        json_match = _re.search(r'\{[\s\S]*\}', reply)
+        if json_match:
+            result = _json.loads(json_match.group())
+            return jsonify({'result': result, 'source': 'AI Vision Estimate'})
+        return jsonify({'error': 'Could not parse AI response'}), 500
+
+    except Exception as e:
+        return jsonify({'error': f'AI analysis failed: {str(e)}'}), 500
+
+
+@food_bp.route('/api/barcode-lookup')
+@login_required
+def barcode_lookup():
+    """Look up nutrition info by barcode — checks local cache first, then Open Food Facts."""
+    import requests
+    barcode = request.args.get('barcode', '').strip()
+    if not barcode:
+        return jsonify({'error': 'No barcode provided'}), 400
+
+    # Check local cache first
+    cached = BarcodeCache.query.filter_by(barcode=barcode).first()
+    if cached:
+        return jsonify({
+            'product': {
+                'name': cached.product_name or 'Unknown',
+                'brand': cached.brand or '',
+                'serving_size': cached.serving_size or '100g',
+                'nutrients': {
+                    'calories': cached.calories_per_100g or 0,
+                    'protein': cached.protein_per_100g or 0,
+                    'carbs': cached.carbs_per_100g or 0,
+                    'fat': cached.fat_per_100g or 0,
+                    'fiber': cached.fiber_per_100g or 0,
+                },
+                'image_url': cached.image_url or '',
+                'barcode': barcode,
+                'source': 'local',
+            }
+        })
+
+    # Fall back to Open Food Facts
+    try:
+        resp = requests.get(
+            f'https://world.openfoodfacts.org/api/v0/product/{barcode}.json',
+            headers={'User-Agent': 'GritBoard/1.0'},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    except Exception as e:
+        return jsonify({'error': f'Barcode lookup failed: {str(e)}'}), 502
+
+    if data.get('status') != 1:
+        return jsonify({'error': 'Product not found. Try entering the food manually.'}), 404
+
+    product = data.get('product', {})
+    n = product.get('nutriments', {})
+
+    result = {
+        'name': product.get('product_name', 'Unknown'),
+        'brand': product.get('brands', ''),
+        'serving_size': product.get('serving_size', '100g'),
+        'nutrients': {
+            'calories': round(n.get('energy-kcal_100g') or n.get('energy-kcal_serving') or 0, 1),
+            'protein': round(n.get('proteins_100g') or 0, 1),
+            'carbs': round(n.get('carbohydrates_100g') or 0, 1),
+            'fat': round(n.get('fat_100g') or 0, 1),
+            'fiber': round(n.get('fiber_100g') or 0, 1),
+        },
+        'image_url': product.get('image_front_small_url', ''),
+        'barcode': barcode,
+        'source': 'openfoodfacts',
+    }
+
+    # Cache locally for future lookups
+    try:
+        cache_entry = BarcodeCache(
+            barcode=barcode,
+            product_name=result['name'],
+            brand=result['brand'],
+            serving_size=result['serving_size'],
+            calories_per_100g=result['nutrients']['calories'],
+            protein_per_100g=result['nutrients']['protein'],
+            carbs_per_100g=result['nutrients']['carbs'],
+            fat_per_100g=result['nutrients']['fat'],
+            fiber_per_100g=result['nutrients']['fiber'],
+            image_url=result['image_url'],
+        )
+        db.session.add(cache_entry)
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+    return jsonify({'product': result})
+
+
+@food_bp.route('/api/barcode-manual-add', methods=['POST'])
+@login_required
+def barcode_manual_add():
+    """Add a manually entered barcode product to the food log and cache it locally."""
+    data = request.get_json()
+    if not data or not data.get('product_name'):
+        return jsonify({'error': 'Product name is required'}), 400
+
+    barcode = data.get('barcode', '').strip()
+    cal = float(data.get('calories') or 0)
+    protein = float(data.get('protein') or 0)
+    carbs = float(data.get('carbs') or 0)
+    fat = float(data.get('fat') or 0)
+    fiber = float(data.get('fiber') or 0)
+    product_name = data['product_name'].strip()
+    brand = data.get('brand', '').strip()
+    serving_size = data.get('serving_size', '100g').strip()
+
+    # Add to food log
+    food_name = product_name + (f' ({brand})' if brand else '')
+    entry = FoodEntry(
+        user_id=current_user.id,
+        date=datetime.strptime(data.get('date', ''), '%Y-%m-%d').date() if data.get('date') else date.today(),
+        meal_type=data.get('meal_type', 'snack'),
+        food_name=food_name,
+        serving_size=serving_size,
+        calories=cal, protein=protein, carbs=carbs, fat=fat, fiber=fiber,
+    )
+    db.session.add(entry)
+
+    # Cache in barcode database for future lookups (per 100g)
+    if barcode:
+        existing = BarcodeCache.query.filter_by(barcode=barcode).first()
+        if not existing:
+            cache_entry = BarcodeCache(
+                barcode=barcode,
+                product_name=product_name,
+                brand=brand,
+                serving_size=serving_size,
+                calories_per_100g=cal,
+                protein_per_100g=protein,
+                carbs_per_100g=carbs,
+                fat_per_100g=fat,
+                fiber_per_100g=fiber,
+            )
+            db.session.add(cache_entry)
+
+    db.session.commit()
+    return jsonify({'ok': True})
 
 
 def _float_or_none(val):

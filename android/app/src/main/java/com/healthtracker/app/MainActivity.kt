@@ -11,6 +11,10 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.view.View
 import android.webkit.*
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -24,11 +28,16 @@ import java.util.*
 
 class MainActivity : AppCompatActivity() {
 
+    companion object {
+        private const val CAMERA_PERMISSION_REQUEST = 1001
+    }
+
     private lateinit var webView: WebView
     private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var errorView: LinearLayout
     private var fileUploadCallback: ValueCallback<Array<Uri>>? = null
     private var cameraPhotoUri: Uri? = null
+    private var pendingPermissionRequest: PermissionRequest? = null
 
     private val fileChooserLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -113,8 +122,35 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // Handle file uploads (photo uploads) and JS dialogs
+        // Handle file uploads (photo uploads), camera permissions, and JS dialogs
         webView.webChromeClient = object : WebChromeClient() {
+            // Grant camera permission for getUserMedia (needed for barcode scanner)
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                runOnUiThread {
+                    val grantedResources = request?.resources?.filter { resource ->
+                        resource == PermissionRequest.RESOURCE_VIDEO_CAPTURE ||
+                        resource == PermissionRequest.RESOURCE_AUDIO_CAPTURE
+                    }?.toTypedArray()
+
+                    if (!grantedResources.isNullOrEmpty()) {
+                        // Check Android runtime camera permission first
+                        if (ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.CAMERA)
+                            == PackageManager.PERMISSION_GRANTED) {
+                            request?.grant(grantedResources)
+                        } else {
+                            pendingPermissionRequest = request
+                            ActivityCompat.requestPermissions(
+                                this@MainActivity,
+                                arrayOf(Manifest.permission.CAMERA),
+                                CAMERA_PERMISSION_REQUEST
+                            )
+                        }
+                    } else {
+                        request?.deny()
+                    }
+                }
+            }
+
             override fun onShowFileChooser(
                 webView: WebView?,
                 callback: ValueCallback<Array<Uri>>?,
@@ -206,6 +242,18 @@ class MainActivity : AppCompatActivity() {
             File.createTempFile("PHOTO_${timestamp}_", ".jpg", dir)
         } catch (e: Exception) {
             null
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CAMERA_PERMISSION_REQUEST) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                pendingPermissionRequest?.grant(pendingPermissionRequest?.resources)
+            } else {
+                pendingPermissionRequest?.deny()
+            }
+            pendingPermissionRequest = null
         }
     }
 
