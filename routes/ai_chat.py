@@ -7,10 +7,22 @@ from models import db, ChatMessage, ChatConversation
 ai_bp = Blueprint('ai', __name__)
 
 
+def _get_effective_ai_key(user):
+    """Return the AI API key to use: user's own key, or system key if granted."""
+    if user.ai_api_key:
+        return user.ai_api_key, user.ai_provider or 'claude'
+    if user.use_system_ai_key:
+        from models import SystemConfig
+        sys_key = SystemConfig.get('system_ai_api_key')
+        if sys_key:
+            return sys_key, 'claude'  # System key always uses Claude
+    return None, user.ai_provider or 'claude'
+
+
 @ai_bp.route('/')
 @login_required
 def chat_page():
-    has_key = bool(current_user.ai_api_key)
+    has_key = bool(current_user.ai_api_key or (current_user.use_system_ai_key and _get_effective_ai_key(current_user)[0]))
 
     # Get or create active conversation
     conv_id = request.args.get('conv')
@@ -113,7 +125,8 @@ def _get_system_prompt(user_tz=None):
 @ai_bp.route('/send', methods=['POST'])
 @login_required
 def send_message():
-    if not current_user.ai_api_key:
+    ai_key, provider = _get_effective_ai_key(current_user)
+    if not ai_key:
         return jsonify({'error': 'Please set your AI API key in Settings first.'}), 400
 
     data = request.get_json()
@@ -128,12 +141,11 @@ def send_message():
     if no_save:
         system_prompt = _get_system_prompt(current_user.tz)
         messages = [{"role": "user", "content": user_message}]
-        provider = current_user.ai_provider or 'claude'
         try:
             if provider == 'claude':
-                response_data = _call_claude(current_user.ai_api_key, system_prompt, messages)
+                response_data = _call_claude(ai_key, system_prompt, messages)
             else:
-                response_data = _call_openai(current_user.ai_api_key, system_prompt, messages)
+                response_data = _call_openai(ai_key, system_prompt, messages)
             return jsonify(response_data)
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -170,13 +182,12 @@ def send_message():
 
     system_prompt = _get_system_prompt(current_user.tz)
     messages = [{"role": m.role, "content": m.content} for m in db_messages]
-    provider = current_user.ai_provider or 'claude'
 
     try:
         if provider == 'claude':
-            response_data = _call_claude(current_user.ai_api_key, system_prompt, messages)
+            response_data = _call_claude(ai_key, system_prompt, messages)
         else:
-            response_data = _call_openai(current_user.ai_api_key, system_prompt, messages)
+            response_data = _call_openai(ai_key, system_prompt, messages)
 
         assistant_msg = ChatMessage(
             user_id=current_user.id, conversation_id=conv.id,
@@ -194,7 +205,8 @@ def send_message():
 @login_required
 def stream_message():
     """SSE streaming endpoint for AI chat."""
-    if not current_user.ai_api_key:
+    ai_key, provider = _get_effective_ai_key(current_user)
+    if not ai_key:
         return jsonify({'error': 'Please set your AI API key in Settings first.'}), 400
 
     data = request.get_json()
@@ -233,10 +245,9 @@ def stream_message():
 
     system_prompt = _get_system_prompt(current_user.tz)
     messages = [{"role": m.role, "content": m.content} for m in db_messages]
-    provider = current_user.ai_provider or 'claude'
 
     user_id = current_user.id
-    api_key = current_user.ai_api_key
+    api_key = ai_key
 
     def generate():
         try:

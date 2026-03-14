@@ -10,3 +10,4 @@ gunicorn>=22.0
 requests>=2.31
 tzdata>=2024.1
 ytmusicapi>=1.7
+yt-dlp>=2024.1

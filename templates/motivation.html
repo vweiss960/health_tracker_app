@@ -4,10 +4,22 @@
 <h1 style="margin-bottom: 1rem;">Motivation</h1>
 
 <div class="card">
-    <h2>Get Inspired</h2>
+    <h2>Daily Inspiration</h2>
     <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
-        AI-curated motivational videos and articles personalized to your fitness goals.
+        {% if has_daily %}
+        Fresh motivational content updated daily. {% if has_api_key %}Switch to <strong>Personalized</strong> for AI-curated content based on your goals.{% endif %}
+        {% else %}
+        Daily content is being generated. {% if has_api_key %}Use <strong>Personalized</strong> mode for AI-curated content based on your goals.{% endif %}
+        {% endif %}
     </p>
+
+    {% if has_api_key %}
+    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <button type="button" class="btn btn-sm mode-btn active" id="modeDailyBtn" onclick="switchMode('daily')" style="background: var(--accent);">Daily</button>
+        <button type="button" class="btn btn-sm mode-btn" id="modePersonalBtn" onclick="switchMode('personal')" style="background: var(--border);">Personalized</button>
+    </div>
+    {% endif %}
+
     <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
         <button type="button" class="btn btn-primary cat-btn active" data-cat="general" onclick="loadContent('general', this)">General</button>
         <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="weight_loss" onclick="loadContent('weight_loss', this)">Weight Loss</button>
@@ -29,9 +41,25 @@
     </div>
 </div>
 
-{% if not has_api_key %}
+{% if has_api_key %}
+<div class="card" id="motivationTextCard">
+    <h2>What Motivates You?</h2>
+    <p style="color: var(--text-muted); margin-bottom: 0.75rem; font-size: 0.9rem;">
+        Add what drives you — one item per line. This personalizes your motivational content. Edit or remove lines anytime.
+    </p>
+    <textarea id="motivationText" rows="5" placeholder="e.g.&#10;Training for my first marathon&#10;Want to lose 20 lbs by summer&#10;Struggling with consistency on weekdays&#10;Inspired by David Goggins"
+        style="width: 100%; resize: vertical; background: #2a2a2e; color: #e0e0e0; border: 1px solid #444; border-radius: 6px; padding: 0.75rem; font-size: 0.95rem; line-height: 1.6;">{{ current_user.motivation_text or '' }}</textarea>
+    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem; align-items: center;">
+        <button type="button" class="btn btn-primary btn-sm" onclick="saveMotivation()">Save</button>
+        <span id="motivationSaved" style="color: var(--success); font-size: 0.85rem; display: none;">Saved!</span>
+    </div>
+</div>
+{% endif %}
+
+{% if not has_daily and not has_api_key %}
 <div class="card" style="text-align: center; padding: 2rem;">
-    <p style="color: var(--text-muted);">You need an AI API key to get personalized motivational content.</p>
+    <p style="color: var(--text-muted);">Daily motivational content hasn't been generated yet.</p>
+    <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 0.5rem;">Ask your admin to configure the system AI key, or add your own AI API key in Settings for personalized content.</p>
     <a href="{{ url_for('settings.settings') }}" class="btn btn-primary" style="margin-top: 0.5rem;">Go to Settings</a>
 </div>
 {% endif %}
@@ -41,6 +69,22 @@
 {% block scripts %}
 <script>
 let currentCategory = '';
+let currentMode = 'daily';
+
+function switchMode(mode) {
+    currentMode = mode;
+    currentCategory = '';  // Reset so category buttons work again
+
+    document.getElementById('modeDailyBtn').style.background = mode === 'daily' ? 'var(--accent)' : 'var(--border)';
+    document.getElementById('modePersonalBtn').style.background = mode === 'personal' ? 'var(--accent)' : 'var(--border)';
+
+    // Reset category buttons
+    document.querySelectorAll('.cat-btn').forEach(b => {
+        b.classList.remove('active');
+        b.style.background = 'var(--border)';
+    });
+    document.getElementById('resultsArea').style.display = 'none';
+}
 
 function loadContent(category, btn) {
     if (currentCategory === category) return;
@@ -59,7 +103,12 @@ function loadContent(category, btn) {
     loading.style.display = 'block';
     results.style.display = 'none';
 
-    fetch('{{ url_for("motivation.get_content") }}', {
+    // Choose endpoint based on mode
+    const endpoint = currentMode === 'personal'
+        ? '{{ url_for("motivation.get_content") }}'
+        : '{{ url_for("motivation.get_daily_content") }}';
+
+    fetch(endpoint, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({category: category})
@@ -82,18 +131,20 @@ function loadContent(category, btn) {
             mindset: 'Mindset & Discipline',
             success_stories: 'Success Stories'
         };
-        document.getElementById('resultsTitle').textContent = labels[category] || 'Recommended for You';
+        const modeLabel = currentMode === 'personal' ? ' (Personalized)' : '';
+        document.getElementById('resultsTitle').textContent = (labels[category] || 'Recommended for You') + modeLabel;
 
         const list = document.getElementById('resultsList');
         list.innerHTML = data.results.map(r => {
             const icon = r.type === 'video' ? '&#9654;' : '&#128196;';
             const typeLabel = r.type === 'video' ? 'Video' : 'Article';
             const sourceHint = r.source_hint ? `<span style="font-size: 0.75rem; color: var(--text-muted);">${escapeHtml(r.source_hint)}</span>` : '';
+            const thumb = r.thumbnail ? `<img src="${r.thumbnail}" alt="" style="width: 120px; height: 68px; object-fit: cover; border-radius: 6px; flex-shrink: 0;" loading="lazy">` : `<div class="motivation-icon">${icon}</div>`;
 
             return `
                 <a href="${r.url}" target="_blank" rel="noopener" style="text-decoration: none; color: inherit; display: block;">
                     <div class="motivation-card">
-                        <div class="motivation-icon">${icon}</div>
+                        ${thumb}
                         <div style="flex: 1; min-width: 0;">
                             <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem;">${escapeHtml(r.title)}</div>
                             <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.3rem;">${escapeHtml(r.description)}</div>
@@ -110,7 +161,7 @@ function loadContent(category, btn) {
     })
     .catch(() => {
         loading.style.display = 'none';
-        alert('Failed to load content. Check your API key.');
+        alert('Failed to load content.');
         currentCategory = '';
     });
 }
@@ -121,8 +172,28 @@ function escapeHtml(text) {
     return d.innerHTML;
 }
 
-// Auto-load general on page load if API key exists
-{% if has_api_key %}
+function saveMotivation() {
+    const text = document.getElementById('motivationText').value.trim();
+    fetch('{{ url_for("motivation.save_motivation_text") }}', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({text: text})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.ok) {
+            const saved = document.getElementById('motivationSaved');
+            saved.style.display = 'inline';
+            setTimeout(() => saved.style.display = 'none', 2000);
+            // Reset personalized results so next click fetches with new context
+            if (currentMode === 'personal') currentCategory = '';
+        }
+    })
+    .catch(() => alert('Failed to save.'));
+}
+
+// Auto-load general on page load — only from database (daily mode), never AI
+{% if has_daily %}
 document.addEventListener('DOMContentLoaded', function() {
     loadContent('general', document.querySelector('.cat-btn[data-cat="general"]'));
 });

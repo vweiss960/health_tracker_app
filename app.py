@@ -166,7 +166,7 @@ def _set_security_headers(response):
         "default-src 'self'; "
         "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://www.youtube.com https://s.ytimg.com; "
         "style-src 'self' 'unsafe-inline'; "
-        "img-src 'self' data: https://i.ytimg.com; "
+        "img-src 'self' data: https://i.ytimg.com https://lh3.googleusercontent.com https://yt3.ggpht.com; "
         "frame-src https://www.youtube.com; "
         "connect-src 'self'; "
         "font-src 'self'; "
@@ -201,6 +201,8 @@ def _migrate_db():
         ('users', 'tz', 'VARCHAR(64)', None),
         ('users', 'is_admin', 'BOOLEAN', None),
         ('users', 'must_change_password', 'BOOLEAN', None),
+        ('users', 'use_system_ai_key', 'BOOLEAN', None),
+        ('users', 'motivation_text', 'TEXT', None),
     ]
     for table, column, col_type, default in migrations:
         cursor.execute(f"PRAGMA table_info({table})")
@@ -212,6 +214,7 @@ def _migrate_db():
     # Fix boolean columns: normalize NULLs to 0 (only for rows that were never explicitly set)
     cursor.execute("UPDATE users SET is_admin = 0 WHERE is_admin IS NULL")
     cursor.execute("UPDATE users SET must_change_password = 0 WHERE must_change_password IS NULL")
+    cursor.execute("UPDATE users SET use_system_ai_key = 0 WHERE use_system_ai_key IS NULL")
 
     conn.commit()
     conn.close()
@@ -229,6 +232,10 @@ with app.app_context():
             _u.is_admin = True
             db.session.commit()
             print(f"Ensured '{_admin_user}' is admin.")
+
+# Start daily motivation content scheduler
+from services.daily_motivation import start_daily_scheduler
+start_daily_scheduler(app)
 
 @app.cli.command('make-admin')
 def make_admin_cmd():

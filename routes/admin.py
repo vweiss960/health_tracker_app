@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from models import (db, User, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan,
                     MealPlan, ProgressPhoto, ChatConversation, ChatMessage,
                     CommonMeal, WaterEntry, CaffeineEntry, BlockedIP, LoginAttempt,
-                    GeoCache, UserSession)
+                    GeoCache, UserSession, SystemConfig, DailyMotivation)
 
 admin_bp = Blueprint('admin', __name__, template_folder='../templates/admin')
 
@@ -81,9 +81,18 @@ def dashboard():
         if geo:
             geo_map[ip] = geo
 
+    # System AI key status
+    system_ai_key = SystemConfig.get('system_ai_api_key', '')
+    has_system_key = bool(system_ai_key)
+
+    # Last daily motivation generation
+    last_motivation = DailyMotivation.query.order_by(DailyMotivation.date.desc()).first()
+
     return render_template('admin/dashboard.html', users=users, stats=stats,
                            reg_disabled=reg_disabled, blocked_ips=blocked_ips,
-                           recent_sessions=recent_sessions, geo_map=geo_map)
+                           recent_sessions=recent_sessions, geo_map=geo_map,
+                           has_system_key=has_system_key,
+                           last_motivation=last_motivation)
 
 
 # ---------------------------------------------------------------------------
@@ -346,4 +355,61 @@ def migrate_data(user_id):
     db.session.commit()
     verb = 'moved' if action == 'move' else 'copied'
     flash(f'{count} {data_type.replace("_", " ")} {verb} to {target_user.username}', 'success')
+    return redirect(url_for('admin.user_detail', user_id=user_id))
+
+
+# ---------------------------------------------------------------------------
+# System AI API key management
+# ---------------------------------------------------------------------------
+@admin_bp.route('/system-ai-key', methods=['POST'])
+@admin_required
+def set_system_ai_key():
+    key = request.form.get('system_ai_key', '').strip()
+    if key:
+        SystemConfig.set('system_ai_api_key', key)
+        flash('System AI API key saved', 'success')
+    else:
+        flash('No key provided', 'error')
+    return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/clear-system-ai-key', methods=['POST'])
+@admin_required
+def clear_system_ai_key():
+    row = SystemConfig.query.filter_by(key='system_ai_api_key').first()
+    if row:
+        db.session.delete(row)
+        db.session.commit()
+    flash('System AI API key removed', 'success')
+    return redirect(url_for('admin.dashboard'))
+
+
+@admin_bp.route('/generate-motivation-now', methods=['POST'])
+@admin_required
+def generate_motivation_now():
+    """Manually trigger daily motivation generation (uses YouTube search, no AI key needed)."""
+    from services.daily_motivation import generate_daily_content
+    from flask import current_app
+    # Delete today's entries so they get regenerated
+    from datetime import date as _date
+    DailyMotivation.query.filter_by(date=_date.today()).delete()
+    db.session.commit()
+    generate_daily_content(current_app._get_current_object())
+    flash('Daily motivation content generated', 'success')
+    return redirect(url_for('admin.dashboard'))
+
+
+# ---------------------------------------------------------------------------
+# Toggle user access to system AI key
+# ---------------------------------------------------------------------------
+@admin_bp.route('/user/<int:user_id>/toggle-system-ai', methods=['POST'])
+@admin_required
+def toggle_system_ai(user_id):
+    user = db.session.get(User, user_id)
+    if not user:
+        abort(404)
+    user.use_system_ai_key = not user.use_system_ai_key
+    db.session.commit()
+    status = 'granted' if user.use_system_ai_key else 'revoked'
+    flash(f'System AI key access {status} for {user.username}', 'success')
     return redirect(url_for('admin.user_detail', user_id=user_id))

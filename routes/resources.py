@@ -5,6 +5,18 @@ from models import db, SavedPlaylist
 resources_bp = Blueprint('resources', __name__)
 
 
+def _get_effective_ai_key_resources(user):
+    """Return the AI API key to use: user's own key, or system key if granted."""
+    if user.ai_api_key:
+        return user.ai_api_key, user.ai_provider or 'claude'
+    if user.use_system_ai_key:
+        from models import SystemConfig
+        sys_key = SystemConfig.get('system_ai_api_key')
+        if sys_key:
+            return sys_key, 'claude'
+    return None, user.ai_provider or 'claude'
+
+
 @resources_bp.route('/')
 @login_required
 def resources_page():
@@ -66,14 +78,14 @@ def music_search():
     if not prompt:
         return jsonify({'error': 'Please describe the music you want'}), 400
 
-    ai_key = current_user.ai_api_key
+    ai_key, ai_provider = _get_effective_ai_key_resources(current_user)
     if not ai_key:
         return jsonify({'error': 'No AI API key configured. Add one in Settings.'}), 400
 
     yt_key = current_user.youtube_api_key
 
     # Step 1: AI generates optimized search queries
-    suggestions = _ai_music_suggestions(current_user.ai_provider, ai_key, prompt)
+    suggestions = _ai_music_suggestions(ai_provider, ai_key, prompt)
     if not suggestions:
         return jsonify({'error': 'AI failed to generate suggestions. Check your AI API key.'}), 502
 

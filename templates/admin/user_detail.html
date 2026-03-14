@@ -32,6 +32,7 @@
         <div><strong>Target Calories:</strong> {{ user.target_calories or 'Not set' }}</div>
         <div><strong>AI Provider:</strong> {{ user.ai_provider or 'Not set' }}</div>
         <div><strong>AI Key:</strong> {{ 'Set' if user.ai_api_key else 'Not set' }}</div>
+        <div><strong>System AI Access:</strong> {{ 'Granted' if user.use_system_ai_key else 'No' }}</div>
         <div><strong>Active Training Plan:</strong> {{ 'Yes' if counts.training_plans else 'No' }}</div>
         <div><strong>Active Meal Plan:</strong> {{ 'Yes' if counts.meal_plans else 'No' }}</div>
     </div>
@@ -58,6 +59,11 @@
         <form method="POST" action="{{ url_for('admin.toggle_admin', user_id=user.id) }}" style="display:inline;">
             <button type="submit" class="btn btn-primary" style="background: var(--warning);">
                 {{ 'Revoke Admin' if user.is_admin else 'Grant Admin' }}
+            </button>
+        </form>
+        <form method="POST" action="{{ url_for('admin.toggle_system_ai', user_id=user.id) }}" style="display:inline;">
+            <button type="submit" class="btn btn-primary" style="background: {{ 'var(--danger)' if user.use_system_ai_key else 'var(--success)' }};">
+                {{ 'Revoke System AI' if user.use_system_ai_key else 'Grant System AI' }}
             </button>
         </form>
         {% if user.id != current_user.id %}

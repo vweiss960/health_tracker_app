@@ -23,6 +23,8 @@ class User(UserMixin, db.Model):
     tz = db.Column(db.String(64))  # IANA timezone, e.g. 'America/New_York'
     is_admin = db.Column(db.Boolean, default=False)
     must_change_password = db.Column(db.Boolean, default=False)
+    use_system_ai_key = db.Column(db.Boolean, default=False)
+    motivation_text = db.Column(db.Text)  # What motivates the user — drives personalized content
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     metrics = db.relationship('BodyMetric', backref='user', lazy=True, cascade='all, delete-orphan')
@@ -235,6 +237,39 @@ class SavedPlaylist(db.Model):
     search_query = db.Column(db.String(300))
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
     user = db.relationship('User', backref=db.backref('saved_playlists', lazy=True, cascade='all, delete-orphan'))
+
+
+class SystemConfig(db.Model):
+    """Key-value store for system-wide settings (e.g. backend AI API key)."""
+    __tablename__ = 'system_config'
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(100), unique=True, nullable=False, index=True)
+    value = db.Column(db.Text)
+
+    @staticmethod
+    def get(key, default=None):
+        row = SystemConfig.query.filter_by(key=key).first()
+        return row.value if row else default
+
+    @staticmethod
+    def set(key, value):
+        row = SystemConfig.query.filter_by(key=key).first()
+        if row:
+            row.value = value
+        else:
+            row = SystemConfig(key=key, value=value)
+            db.session.add(row)
+        db.session.commit()
+
+
+class DailyMotivation(db.Model):
+    """Pre-generated daily motivational content available to all users."""
+    __tablename__ = 'daily_motivations'
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.Date, nullable=False, index=True)
+    category = db.Column(db.String(50), nullable=False)
+    content_json = db.Column(db.Text, nullable=False)  # JSON array of items
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class TrainingEntry(db.Model):

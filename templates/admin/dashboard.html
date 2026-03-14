@@ -25,10 +25,46 @@
 
 <div class="card">
     <h2>System Settings</h2>
-    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;">
+    <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem;">
         <span>Registration: <strong style="color: {{ 'var(--danger)' if reg_disabled else 'var(--success)' }};">{{ 'Disabled' if reg_disabled else 'Enabled' }}</strong></span>
         <span style="color: var(--text-muted); font-size: 0.85rem;">Set <code>DISABLE_REGISTRATION=true</code> in your environment to disable</span>
     </div>
+
+    <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Daily Motivation</h3>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">
+        Daily motivational content is generated automatically from YouTube searches (no AI tokens used).
+    </p>
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+        {% if last_motivation %}
+        <span>Last generated: <strong>{{ last_motivation.date.strftime('%Y-%m-%d') }}</strong></span>
+        {% else %}
+        <span>Status: <strong style="color: var(--text-muted);">Not yet generated</strong></span>
+        {% endif %}
+    </div>
+    <form method="POST" action="{{ url_for('admin.generate_motivation_now') }}" style="display:inline;">
+        <button type="submit" class="btn btn-sm btn-primary" onclick="return confirm('Regenerate daily motivation content now?')">Generate Motivation Now</button>
+    </form>
+
+    <h3 style="font-size: 1rem; margin-top: 1.5rem; margin-bottom: 0.5rem;">System AI API Key</h3>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.75rem;">
+        Shared AI key for granting selected users access to AI Chat, Music Search, and Personalized Motivation without needing their own key.
+    </p>
+    <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+        <span>Status: <strong style="color: {{ 'var(--success)' if has_system_key else 'var(--text-muted)' }};">{{ 'Configured' if has_system_key else 'Not set' }}</strong></span>
+    </div>
+    <form method="POST" action="{{ url_for('admin.set_system_ai_key') }}" style="display: flex; gap: 0.5rem; align-items: end; flex-wrap: wrap;">
+        <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+            <input type="password" name="system_ai_key" placeholder="{{ 'Leave blank to keep current key' if has_system_key else 'Enter Anthropic API key' }}" style="width: 100%;">
+        </div>
+        <button type="submit" class="btn btn-primary">Save Key</button>
+    </form>
+    {% if has_system_key %}
+    <div style="margin-top: 0.75rem;">
+        <form method="POST" action="{{ url_for('admin.clear_system_ai_key') }}" style="display:inline;">
+            <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove the system AI key?')">Clear Key</button>
+        </form>
+    </div>
+    {% endif %}
 </div>
 
 <div class="card">
