@@ -29,6 +29,7 @@ CATEGORY_KEYWORDS = {
     'nutrition': ['healthy eating', 'meal prep', 'nutrition tips'],
     'mindset': ['mental toughness fitness', 'discipline vs motivation', 'growth mindset'],
     'success_stories': ['fitness transformation story', 'before and after fitness', 'weight loss success'],
+    'cinematic': ['fitness cinematic short film', 'gym cinematic edit motivation', 'workout cinematic montage'],
 }
 
 
@@ -130,8 +131,11 @@ def _ai_generate_search_queries(provider, api_key, category, motivation_text, ba
         'nutrition': 'nutrition and healthy eating',
         'mindset': 'mental toughness and discipline',
         'success_stories': 'fitness transformation stories',
+        'cinematic': 'cinematic fitness and health motivation',
     }
     topic = category_labels.get(category, 'fitness motivation')
+
+    is_cinematic = (category == 'cinematic')
 
     # Build prompt with motivation text as the PRIMARY input
     prompt_parts = [
@@ -148,12 +152,26 @@ def _ai_generate_search_queries(provider, api_key, category, motivation_text, ba
     if background:
         prompt_parts.append(f"\nAdditional context: {background}")
 
-    prompt_parts.extend([
-        "",
-        "Each search query MUST directly reflect the user's specific words, goals, and interests above.",
-        "Do NOT use generic fitness queries — make every query specific to what they wrote.",
-        "Return ONLY a JSON array of 5 search query strings. No other text.",
-    ])
+    prompt_parts.append("")
+    prompt_parts.append("Each search query MUST directly reflect the user's specific words, goals, and interests above.")
+    prompt_parts.append("Do NOT use generic fitness queries — make every query specific to what they wrote.")
+    prompt_parts.append("Each query MUST be unique and different from the others — vary the angle, creator, or subtopic.")
+    prompt_parts.append("Do NOT create queries that would return the same videos.")
+
+    if is_cinematic:
+        prompt_parts.extend([
+            "CRITICAL: Every query MUST target purely VISUAL, CINEMATIC content — indie short films, cinematic edits, montages, b-roll compilations, or visual storytelling.",
+            "The content must NOT be instructional, tutorial, or talking-head style. No tips, no explanations, no speeches.",
+            "Target indie filmmakers, cinematic editors, and visual creators — NOT fitness YouTubers or coaches.",
+            "Add words like 'cinematic', 'short film', 'visual', 'montage', 'edit', '4K', 'no talking', 'b roll', or 'cinematic edit' to each query.",
+        ])
+    else:
+        prompt_parts.extend([
+            "Include at least 1 query targeting cinematic or documentary-style content (e.g. add words like 'cinematic', 'short film', 'documentary', 'mini doc', or '4K' to the query).",
+            "Include at least 1 query targeting a well-known creator or channel relevant to the user's goals.",
+        ])
+
+    prompt_parts.append("Return ONLY a JSON array of 5 search query strings. No other text.")
 
     prompt = '\n'.join(prompt_parts)
 
@@ -201,6 +219,7 @@ def _build_profile_queries(user, category):
         'nutrition': 'nutrition healthy eating',
         'mindset': 'mental toughness discipline',
         'success_stories': 'fitness transformation',
+        'cinematic': 'cinematic short film fitness motivation',
     }
     topic = category_labels.get(category, 'fitness motivation')
     queries = []
@@ -227,15 +246,22 @@ def _build_profile_queries(user, category):
     return queries[:5]
 
 
+def _normalize_title(title):
+    """Normalize a title for deduplication: lowercase, strip punctuation and extra spaces."""
+    import re
+    t = title.lower().strip()
+    t = re.sub(r'[^\w\s]', '', t)  # remove punctuation
+    t = re.sub(r'\s+', ' ', t)     # collapse whitespace
+    return t
+
+
 def _search_youtube(queries, max_per_query=2):
     """Search regular YouTube for videos using yt-dlp."""
     import concurrent.futures
 
-    results = []
-    seen_ids = set()
+    all_items = []  # collect raw results from all queries first
 
     def _do_search(query):
-        """Use yt-dlp to search regular YouTube (not YouTube Music)."""
         try:
             import yt_dlp
             ydl_opts = {
@@ -246,14 +272,13 @@ def _search_youtube(queries, max_per_query=2):
                 'socket_timeout': 10,
             }
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                search_url = f"ytsearch{max_per_query + 2}:{query}"
+                search_url = f"ytsearch{max_per_query + 3}:{query}"
                 info = ydl.extract_info(search_url, download=False)
                 return info.get('entries', []) if info else []
         except Exception as e:
             print(f"[Motivation] YouTube search error for '{query}': {e}")
             return []
 
-    # Run searches in parallel with a timeout
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
         future_map = {executor.submit(_do_search, q): q for q in queries}
         for future in concurrent.futures.as_completed(future_map, timeout=30):
@@ -261,47 +286,55 @@ def _search_youtube(queries, max_per_query=2):
                 search_results = future.result(timeout=15)
             except Exception:
                 continue
+            all_items.extend(search_results or [])
 
-            count = 0
-            for item in (search_results or []):
-                if count >= max_per_query:
-                    break
-                video_id = item.get('id', '') or item.get('url', '')
-                if not video_id or video_id in seen_ids:
-                    continue
-                seen_ids.add(video_id)
+    # Deduplicate by video ID and normalized title
+    results = []
+    seen_ids = set()
+    seen_titles = set()
 
-                title = item.get('title', '')
-                if not title:
-                    continue
+    for item in all_items:
+        video_id = item.get('id', '') or item.get('url', '')
+        if not video_id or video_id in seen_ids:
+            continue
 
-                channel = item.get('uploader', '') or item.get('channel', '') or ''
-                duration_secs = item.get('duration')
-                if duration_secs:
-                    mins, secs = divmod(int(duration_secs), 60)
-                    duration = f"{mins}:{secs:02d}"
-                else:
-                    duration = ''
+        title = item.get('title', '')
+        if not title:
+            continue
 
-                # Build thumbnail URL from video ID
-                thumb_id = item.get('id', video_id)
-                thumbnail = f"https://i.ytimg.com/vi/{thumb_id}/hqdefault.jpg"
+        norm_title = _normalize_title(title)
+        if norm_title in seen_titles:
+            continue
 
-                url = item.get('url', '')
-                if not url.startswith('http'):
-                    url = f"https://www.youtube.com/watch?v={thumb_id}"
+        seen_ids.add(video_id)
+        seen_titles.add(norm_title)
 
-                results.append({
-                    'type': 'video',
-                    'title': title,
-                    'description': f'{channel} • {duration}' if channel and duration else channel or duration or '',
-                    'url': url,
-                    'thumbnail': thumbnail,
-                    'source_hint': channel,
-                })
-                count += 1
+        channel = item.get('uploader', '') or item.get('channel', '') or ''
+        duration_secs = item.get('duration')
+        if duration_secs:
+            mins, secs = divmod(int(duration_secs), 60)
+            duration = f"{mins}:{secs:02d}"
+        else:
+            duration = ''
 
-    # Limit to 6, shuffle for variety
-    results = results[:6]
+        thumb_id = item.get('id', video_id)
+        thumbnail = f"https://i.ytimg.com/vi/{thumb_id}/hqdefault.jpg"
+
+        url = item.get('url', '')
+        if not url.startswith('http'):
+            url = f"https://www.youtube.com/watch?v={thumb_id}"
+
+        results.append({
+            'type': 'video',
+            'title': title,
+            'description': f'{channel} • {duration}' if channel and duration else channel or duration or '',
+            'url': url,
+            'thumbnail': thumbnail,
+            'source_hint': channel,
+        })
+
+    results = results[:8]
     random.shuffle(results)
     return results
+
+

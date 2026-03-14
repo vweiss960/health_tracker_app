@@ -1,13 +1,13 @@
 """
 Background service that generates daily motivational content by searching YouTube
-for real videos. Uses ytmusicapi (no API key needed). Zero AI tokens consumed.
-Runs once per day, pre-generating content for all 6 categories.
+for real videos. Uses yt-dlp (no API key needed).
+Zero AI tokens consumed. Runs once per day, pre-generating content for all 7 categories.
 """
 import json
 import random
 import threading
 import time
-from datetime import datetime, timezone, date
+from datetime import date
 from urllib.parse import quote_plus
 
 
@@ -24,6 +24,9 @@ SEARCH_QUERIES = {
         'consistency is key fitness',
         'no excuses workout motivation',
         'grind mentality fitness',
+        'fitness motivation cinematic 4K',
+        'gym motivation short film',
+        'fitness cinematic edit motivation',
     ],
     'weight_loss': [
         'weight loss transformation story',
@@ -36,6 +39,8 @@ SEARCH_QUERIES = {
         'sustainable weight loss tips',
         'weight loss mistakes to avoid',
         'walking for weight loss results',
+        'weight loss transformation cinematic',
+        'fat to fit documentary short film',
     ],
     'muscle_building': [
         'muscle building tips for beginners',
@@ -48,6 +53,8 @@ SEARCH_QUERIES = {
         'compound exercises for muscle growth',
         'AthleanX build muscle',
         'strength training motivation',
+        'bodybuilding motivation cinematic 4K',
+        'aesthetic bodybuilding short film',
     ],
     'nutrition': [
         'healthy meal prep for the week',
@@ -60,6 +67,8 @@ SEARCH_QUERIES = {
         'anti inflammatory foods diet',
         'nutrition science explained',
         'healthy recipes high protein easy',
+        'food documentary healthy eating',
+        'nutrition science cinematic',
     ],
     'mindset': [
         'mental toughness fitness',
@@ -72,6 +81,8 @@ SEARCH_QUERIES = {
         'fitness mindset shift',
         'never quit motivation speech',
         'resilience training mindset',
+        'discipline motivation cinematic speech',
+        'mental strength documentary short film',
     ],
     'success_stories': [
         'body transformation 1 year',
@@ -84,6 +95,25 @@ SEARCH_QUERIES = {
         'fitness journey documentary',
         'life changing fitness story',
         '100 pound weight loss journey',
+        'fitness transformation mini documentary',
+        'body transformation cinematic story',
+    ],
+    'cinematic': [
+        'fitness cinematic short film',
+        'gym motivation cinematic edit',
+        'fitness cinematic 4K visual',
+        'workout cinematic montage',
+        'bodybuilding cinematic film',
+        'fitness motivation no talking cinematic',
+        'gym aesthetic cinematic edit',
+        'fitness short film indie',
+        'health motivation visual film',
+        'running cinematic short film',
+        'training montage cinematic no speech',
+        'fitness lifestyle cinematic visual',
+        'gym cinematic b roll edit',
+        'indie fitness film motivation',
+        'athletic cinematic visual storytelling',
     ],
 }
 
@@ -118,6 +148,11 @@ ARTICLE_QUERIES = {
         'incredible fitness transformation stories',
         'real weight loss success stories',
         'inspiring body transformation journeys',
+    ],
+    'cinematic': [
+        'cinematic fitness short films',
+        'indie fitness motivation films',
+        'visual fitness motivation no talking',
     ],
 }
 
@@ -190,10 +225,10 @@ def _search_youtube_videos(queries, max_per_query=2):
 
 
 def _generate_content_for_category(category):
-    """Generate real content for a category using YouTube search + article links."""
+    """Generate real content for a category from YouTube."""
     # Pick random subset of video queries for variety
     video_queries = SEARCH_QUERIES.get(category, SEARCH_QUERIES['general'])
-    selected_video_queries = random.sample(video_queries, min(4, len(video_queries)))
+    selected_video_queries = random.sample(video_queries, min(5, len(video_queries)))
 
     # Search YouTube for real videos
     videos = _search_youtube_videos(selected_video_queries, max_per_query=2)
@@ -213,11 +248,11 @@ def _generate_content_for_category(category):
             'source_hint': 'Web Search',
         })
 
-    # Combine and limit to 6 items: prefer videos, pad with articles
-    results = videos[:5] + articles[:2]
-    results = results[:6]
+    # Combine: YouTube videos + articles
+    results = videos[:6] + articles[:2]
+    results = results[:8]
 
-    # Shuffle so articles aren't always last
+    # Shuffle for variety
     random.shuffle(results)
 
     return results if results else None

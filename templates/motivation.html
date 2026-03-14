@@ -27,6 +27,7 @@
         <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="nutrition" onclick="loadContent('nutrition', this)">Nutrition</button>
         <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="mindset" onclick="loadContent('mindset', this)">Mindset</button>
         <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="success_stories" onclick="loadContent('success_stories', this)">Success Stories</button>
+        <button type="button" class="btn btn-sm cat-btn" style="background: var(--border);" data-cat="cinematic" onclick="loadContent('cinematic', this)">Cinematic</button>
     </div>
 </div>
 
@@ -129,7 +130,8 @@ function loadContent(category, btn) {
             muscle_building: 'Muscle Building',
             nutrition: 'Nutrition Inspiration',
             mindset: 'Mindset & Discipline',
-            success_stories: 'Success Stories'
+            success_stories: 'Success Stories',
+            cinematic: 'Cinematic'
         };
         const modeLabel = currentMode === 'personal' ? ' (Personalized)' : '';
         document.getElementById('resultsTitle').textContent = (labels[category] || 'Recommended for You') + modeLabel;
