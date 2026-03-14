@@ -35,6 +35,7 @@ class User(UserMixin, db.Model):
     training_plans = db.relationship('TrainingPlan', backref='user', lazy=True, cascade='all, delete-orphan')
     meal_plans = db.relationship('MealPlan', backref='user', lazy=True, cascade='all, delete-orphan')
     progress_photos = db.relationship('ProgressPhoto', backref='user', lazy=True, cascade='all, delete-orphan')
+    strength_entries = db.relationship('StrengthEntry', backref='user', lazy=True, cascade='all, delete-orphan')
 
 
 class BodyMetric(db.Model):
@@ -270,6 +271,34 @@ class DailyMotivation(db.Model):
     category = db.Column(db.String(50), nullable=False)
     content_json = db.Column(db.Text, nullable=False)  # JSON array of items
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
+class StrengthEntry(db.Model):
+    """Track big-three lifts: bench press, squat, deadlift."""
+    __tablename__ = 'strength_entries'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    date = db.Column(db.Date, nullable=False, default=lambda: datetime.now(timezone.utc).date())
+    lift = db.Column(db.String(20), nullable=False)  # 'bench', 'squat', 'deadlift'
+    weight = db.Column(db.Float, nullable=False)  # weight lifted
+    reps = db.Column(db.Integer, nullable=False)
+    body_weight = db.Column(db.Float)  # needed for squat & deadlift relative strength
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    @property
+    def estimated_1rm(self):
+        """Epley formula: weight × (1 + reps/30)"""
+        if self.reps == 1:
+            return self.weight
+        return round(self.weight * (1 + self.reps / 30), 1)
+
+    @property
+    def relative_strength(self):
+        """Estimated 1RM / body weight (for squat & deadlift)."""
+        if not self.body_weight or self.body_weight == 0:
+            return None
+        return round(self.estimated_1rm / self.body_weight, 2)
 
 
 class TrainingEntry(db.Model):

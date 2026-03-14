@@ -6,12 +6,35 @@
 {% block content %}
 <h1 style="margin-bottom: 1rem;">Body Metrics</h1>
 
-{% if metrics and metrics[0].weight %}
+{# ─── WEIGHT SECTION ─── #}
+{% set latest_weight = metrics|selectattr('weight')|first %}
+{% if latest_weight %}
 <div class="stats-row">
     <div class="stat-card">
-        <div class="value">{{ "%.1f"|format(metrics[0].weight) }}</div>
+        <div class="value">{{ "%.1f"|format(latest_weight.weight) }}</div>
         <div class="label">Current Weight</div>
     </div>
+    {% if metrics|selectattr('weight')|list|length >= 2 %}
+    {% set weights_with_val = metrics|selectattr('weight')|list %}
+    {% set change = weights_with_val[0].weight - weights_with_val[-1].weight %}
+    <div class="stat-card">
+        <div class="value" style="color: {{ 'var(--success)' if change <= 0 else 'var(--danger, #f87171)' }}">{{ "%+.1f"|format(change) }}</div>
+        <div class="label">Change (last {{ weights_with_val|length }} entries)</div>
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Weight Trend</h2>
+    <div class="chart-container">
+        <canvas id="weightChart"></canvas>
+    </div>
+</div>
+
+{# ─── BODY MEASUREMENTS SECTION ─── #}
+{% if metrics and (metrics[0].waist or metrics[0].chest or metrics[0].belly) %}
+<div class="stats-row">
     {% if metrics[0].waist %}
     <div class="stat-card">
         <div class="value">{{ "%.1f"|format(metrics[0].waist) }}</div>
@@ -34,12 +57,13 @@
 {% endif %}
 
 <div class="card">
-    <h2>Trends</h2>
+    <h2>Body Measurements Trend</h2>
     <div class="chart-container">
-        <canvas id="metricsChart"></canvas>
+        <canvas id="measurementsChart"></canvas>
     </div>
 </div>
 
+{# ─── LOG BODY MEASUREMENTS ─── #}
 <div class="card">
     <h2>Log Measurements</h2>
     <form method="POST" action="{{ url_for('metrics.add_metric') }}">
@@ -89,6 +113,7 @@
     </form>
 </div>
 
+{# ─── RECENT BODY ENTRIES TABLE (inline editable) ─── #}
 <div class="card">
     <h2>Recent Entries</h2>
     <div class="table-wrap">
@@ -101,30 +126,17 @@
         </thead>
         <tbody>
         {% for m in metrics %}
-            <tr>
-                <td>{{ m.date.strftime('%b %d') }}</td>
-                <td>{{ m.weight or '-' }}</td>
-                <td>{{ m.belly or '-' }}</td>
-                <td>{{ m.waist or '-' }}</td>
-                <td>{{ m.chest or '-' }}</td>
-                <td>{{ m.arm_left or '-' }}</td>
-                <td>{{ m.arm_right or '-' }}</td>
-                <td>{{ m.leg_left or '-' }}</td>
-                <td>{{ m.leg_right or '-' }}</td>
-                <td style="white-space: nowrap;">
-                    <button type="button" class="btn btn-primary btn-sm"
-                        data-id="{{ m.id }}"
-                        data-date="{{ m.date.isoformat() }}"
-                        data-weight="{{ m.weight or '' }}"
-                        data-belly="{{ m.belly or '' }}"
-                        data-waist="{{ m.waist or '' }}"
-                        data-chest="{{ m.chest or '' }}"
-                        data-arm_left="{{ m.arm_left or '' }}"
-                        data-arm_right="{{ m.arm_right or '' }}"
-                        data-leg_left="{{ m.leg_left or '' }}"
-                        data-leg_right="{{ m.leg_right or '' }}"
-                        data-notes="{{ m.notes or '' }}"
-                        onclick="editMetric(this)">Edit</button>
+            <tr data-entry-id="{{ m.id }}" data-entry-type="metric">
+                <td class="editable" data-field="date" data-type="date" data-raw="{{ m.date.isoformat() }}">{{ m.date.strftime('%b %d') }}</td>
+                <td class="editable" data-field="weight" data-type="number" data-step="0.1">{{ m.weight or '-' }}</td>
+                <td class="editable" data-field="belly" data-type="number" data-step="0.1">{{ m.belly or '-' }}</td>
+                <td class="editable" data-field="waist" data-type="number" data-step="0.1">{{ m.waist or '-' }}</td>
+                <td class="editable" data-field="chest" data-type="number" data-step="0.1">{{ m.chest or '-' }}</td>
+                <td class="editable" data-field="arm_left" data-type="number" data-step="0.1">{{ m.arm_left or '-' }}</td>
+                <td class="editable" data-field="arm_right" data-type="number" data-step="0.1">{{ m.arm_right or '-' }}</td>
+                <td class="editable" data-field="leg_left" data-type="number" data-step="0.1">{{ m.leg_left or '-' }}</td>
+                <td class="editable" data-field="leg_right" data-type="number" data-step="0.1">{{ m.leg_right or '-' }}</td>
+                <td>
                     <form method="POST" action="{{ url_for('metrics.delete_metric', metric_id=m.id) }}" style="display:inline;">
                         <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
                     </form>
@@ -136,60 +148,130 @@
     </div>
 </div>
 
-<!-- Edit Metric Modal -->
-<div id="editMetricModal" class="modal-overlay" style="display:none;">
-    <div class="modal-content card">
-        <h2>Edit Measurements</h2>
-        <form method="POST" id="editMetricForm">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Date</label>
-                    <input type="date" name="date" id="emDate" required>
-                </div>
-                <div class="form-group">
-                    <label>Weight</label>
-                    <input type="number" step="0.1" name="weight" id="emWeight" placeholder="lbs / kg">
-                </div>
-                <div class="form-group">
-                    <label>Belly</label>
-                    <input type="number" step="0.1" name="belly" id="emBelly" placeholder="inches / cm">
-                </div>
-                <div class="form-group">
-                    <label>Waist</label>
-                    <input type="number" step="0.1" name="waist" id="emWaist" placeholder="inches / cm">
-                </div>
-                <div class="form-group">
-                    <label>Chest</label>
-                    <input type="number" step="0.1" name="chest" id="emChest" placeholder="inches / cm">
-                </div>
-                <div class="form-group">
-                    <label>Left Arm</label>
-                    <input type="number" step="0.1" name="arm_left" id="emArmLeft" placeholder="inches / cm">
-                </div>
-                <div class="form-group">
-                    <label>Right Arm</label>
-                    <input type="number" step="0.1" name="arm_right" id="emArmRight" placeholder="inches / cm">
-                </div>
-                <div class="form-group">
-                    <label>Left Leg</label>
-                    <input type="number" step="0.1" name="leg_left" id="emLegLeft" placeholder="inches / cm">
-                </div>
-                <div class="form-group">
-                    <label>Right Leg</label>
-                    <input type="number" step="0.1" name="leg_right" id="emLegRight" placeholder="inches / cm">
-                </div>
-                <div class="form-group form-full">
-                    <label>Notes</label>
-                    <input type="text" name="notes" id="emNotes" placeholder="Optional notes">
-                </div>
-            </div>
-            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-                <button type="button" class="btn btn-sm" onclick="document.getElementById('editMetricModal').style.display='none'" style="background: var(--border);">Cancel</button>
-            </div>
-        </form>
+{# ─── STRENGTH SECTION ─── #}
+<h1 style="margin-bottom: 1rem; margin-top: 2rem;">Strength Metrics</h1>
+
+{% set latest_bench = strength|selectattr('lift', 'equalto', 'bench')|first %}
+{% set latest_squat = strength|selectattr('lift', 'equalto', 'squat')|first %}
+{% set latest_deadlift = strength|selectattr('lift', 'equalto', 'deadlift')|first %}
+
+{% if latest_bench or latest_squat or latest_deadlift %}
+<div class="stats-row">
+    {% if latest_bench %}
+    <div class="stat-card">
+        <div class="value">{{ "%.0f"|format(latest_bench.estimated_1rm) }}</div>
+        <div class="label">Bench Est. 1RM</div>
+    </div>
+    {% endif %}
+    {% if latest_squat %}
+    <div class="stat-card">
+        <div class="value">{{ "%.0f"|format(latest_squat.estimated_1rm) }}</div>
+        <div class="label">Squat Est. 1RM</div>
+    </div>
+    {% if latest_squat.relative_strength %}
+    <div class="stat-card">
+        <div class="value">{{ "%.2f"|format(latest_squat.relative_strength) }}x</div>
+        <div class="label">Squat / BW</div>
+    </div>
+    {% endif %}
+    {% endif %}
+    {% if latest_deadlift %}
+    <div class="stat-card">
+        <div class="value">{{ "%.0f"|format(latest_deadlift.estimated_1rm) }}</div>
+        <div class="label">Deadlift Est. 1RM</div>
+    </div>
+    {% if latest_deadlift.relative_strength %}
+    <div class="stat-card">
+        <div class="value">{{ "%.2f"|format(latest_deadlift.relative_strength) }}x</div>
+        <div class="label">Deadlift / BW</div>
+    </div>
+    {% endif %}
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="card">
+    <h2>Strength Trend (Estimated 1RM)</h2>
+    <div class="chart-container">
+        <canvas id="strengthChart"></canvas>
     </div>
 </div>
+
+<div class="card">
+    <h2>Log Strength</h2>
+    <p style="color: var(--text-muted); margin-bottom: 0.75rem; font-size: 0.85rem;">
+        Enter your best set for each lift. Estimated 1RM is calculated using the Epley formula.
+        Body weight is used for squat &amp; deadlift relative strength.
+    </p>
+    <form method="POST" action="{{ url_for('metrics.add_strength') }}">
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Date</label>
+                <input type="date" name="date" value="{{ today }}" required>
+            </div>
+            <div class="form-group">
+                <label>Lift</label>
+                <select name="lift" id="strengthLift" onchange="toggleBodyWeight()" required>
+                    <option value="bench">Bench Press</option>
+                    <option value="squat">Squat</option>
+                    <option value="deadlift">Deadlift</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label>Weight Lifted</label>
+                <input type="number" step="0.5" name="weight" placeholder="lbs / kg" required>
+            </div>
+            <div class="form-group">
+                <label>Reps</label>
+                <input type="number" name="reps" min="1" placeholder="Reps performed" required>
+            </div>
+            <div class="form-group" id="bodyWeightGroup" style="display: none;">
+                <label>Body Weight</label>
+                <input type="number" step="0.1" name="body_weight" id="strengthBodyWeight" placeholder="lbs / kg">
+            </div>
+            <div class="form-group">
+                <label>Notes</label>
+                <input type="text" name="notes" placeholder="Optional notes">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Save Lift</button>
+    </form>
+</div>
+
+{# ─── RECENT STRENGTH ENTRIES TABLE (inline editable) ─── #}
+{% if strength %}
+<div class="card">
+    <h2>Recent Strength Entries</h2>
+    <div class="table-wrap">
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th><th>Lift</th><th>Weight</th><th>Reps</th>
+                <th>Est. 1RM</th><th>Body Wt</th><th>Relative</th><th></th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for s in strength %}
+            <tr data-entry-id="{{ s.id }}" data-entry-type="strength">
+                <td class="editable" data-field="date" data-type="date" data-raw="{{ s.date.isoformat() }}">{{ s.date.strftime('%b %d') }}</td>
+                <td class="editable" data-field="lift" data-type="select">{{ s.lift|capitalize }}</td>
+                <td class="editable" data-field="weight" data-type="number" data-step="0.5">{{ s.weight }}</td>
+                <td class="editable" data-field="reps" data-type="number">{{ s.reps }}</td>
+                <td class="computed-1rm">{{ "%.0f"|format(s.estimated_1rm) }}</td>
+                <td class="editable" data-field="body_weight" data-type="number" data-step="0.1">{{ s.body_weight or '-' }}</td>
+                <td class="computed-relative">{{ "%.2f"|format(s.relative_strength) ~ 'x' if s.relative_strength else '-' }}</td>
+                <td>
+                    <form method="POST" action="{{ url_for('metrics.delete_strength', entry_id=s.id) }}" style="display:inline;">
+                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}
 
@@ -202,74 +284,201 @@
     document.querySelectorAll('input[type="date"]').forEach(el => { if (el.value !== localDate) el.value = localDate; });
 })();
 
-function editMetric(btn) {
-    document.getElementById('editMetricForm').action = `/metrics/edit/${btn.dataset.id}`;
-    document.getElementById('emDate').value = btn.dataset.date || '';
-    document.getElementById('emWeight').value = btn.dataset.weight || '';
-    document.getElementById('emBelly').value = btn.dataset.belly || '';
-    document.getElementById('emWaist').value = btn.dataset.waist || '';
-    document.getElementById('emChest').value = btn.dataset.chest || '';
-    document.getElementById('emArmLeft').value = btn.dataset.arm_left || '';
-    document.getElementById('emArmRight').value = btn.dataset.arm_right || '';
-    document.getElementById('emLegLeft').value = btn.dataset.leg_left || '';
-    document.getElementById('emLegRight').value = btn.dataset.leg_right || '';
-    document.getElementById('emNotes').value = btn.dataset.notes || '';
-    document.getElementById('editMetricModal').style.display = 'flex';
+// Show/hide body weight field based on lift type
+function toggleBodyWeight() {
+    const lift = document.getElementById('strengthLift').value;
+    const bwGroup = document.getElementById('bodyWeightGroup');
+    bwGroup.style.display = (lift === 'squat' || lift === 'deadlift') ? '' : 'none';
 }
 
-// Close modal on overlay click
-document.querySelectorAll('.modal-overlay').forEach(m => {
-    m.addEventListener('click', function(e) { if (e.target === this) this.style.display = 'none'; });
+// ─── Inline editing for both body metrics and strength tables ───
+var LIFTS = ['bench', 'squat', 'deadlift'];
+
+document.addEventListener('click', function(e) {
+    var cell = e.target.closest('td.editable');
+    if (!cell || cell.querySelector('input, select')) return;
+
+    var row = cell.closest('tr');
+    var entryId = row.dataset.entryId;
+    var entryType = row.dataset.entryType; // 'metric' or 'strength'
+    var field = cell.dataset.field;
+    var type = cell.dataset.type;
+    var current = cell.textContent.trim();
+    if (current === '-') current = '';
+
+    var input;
+    if (type === 'date') {
+        input = document.createElement('input');
+        input.type = 'date';
+        input.value = cell.dataset.raw || '';
+    } else if (type === 'select' && field === 'lift') {
+        input = document.createElement('select');
+        LIFTS.forEach(function(lift) {
+            var opt = document.createElement('option');
+            opt.value = lift;
+            opt.textContent = lift.charAt(0).toUpperCase() + lift.slice(1);
+            if (lift === current.toLowerCase()) opt.selected = true;
+            input.appendChild(opt);
+        });
+    } else {
+        input = document.createElement('input');
+        input.type = type === 'number' ? 'number' : 'text';
+        if (cell.dataset.step) input.step = cell.dataset.step;
+        input.value = current;
+    }
+
+    input.className = 'inline-edit';
+    cell.textContent = '';
+    cell.appendChild(input);
+    input.focus();
+    if (input.select) input.select();
+
+    function save() {
+        var val = input.value.trim();
+        var url = entryType === 'strength'
+            ? '/metrics/strength/update/' + entryId
+            : '/metrics/update/' + entryId;
+
+        fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({field: field, value: val})
+        }).then(function(r) { return r.json(); }).then(function(data) {
+            cell.textContent = data.value || '-';
+            // For date fields, update the raw data attribute too
+            if (field === 'date' && val) cell.dataset.raw = val;
+            // For strength entries, update computed columns
+            if (entryType === 'strength' && data.estimated_1rm !== undefined) {
+                var rm = row.querySelector('.computed-1rm');
+                if (rm) rm.textContent = Math.round(data.estimated_1rm);
+                var rel = row.querySelector('.computed-relative');
+                if (rel) rel.textContent = data.relative_strength ? data.relative_strength.toFixed(2) + 'x' : '-';
+            }
+        }).catch(function() {
+            cell.textContent = current || '-';
+        });
+    }
+
+    input.addEventListener('blur', save);
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+        if (e.key === 'Escape') { cell.textContent = current || '-'; }
+    });
 });
 
+const chartDefaults = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { position: 'top', labels: { color: '#e0e0e0' } } },
+    scales: {
+        x: { display: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.08)' } },
+        y: { display: true, ticks: { color: '#888' }, grid: { color: 'rgba(255,255,255,0.08)' } }
+    },
+};
+
+// ─── Weight Chart ───
 fetch('{{ url_for("metrics.api_data") }}')
     .then(r => r.json())
     .then(data => {
         if (!data.length) return;
+
+        // Weight chart — only weight data
+        const weightData = data.filter(d => d.weight !== null);
+        if (weightData.length) {
+            new Chart(document.getElementById('weightChart'), {
+                type: 'line',
+                data: {
+                    labels: weightData.map(d => d.date),
+                    datasets: [{
+                        label: 'Weight', data: weightData.map(d => d.weight),
+                        borderColor: '#818cf8', backgroundColor: '#818cf820',
+                        tension: 0.3, fill: true,
+                    }]
+                },
+                options: chartDefaults,
+            });
+        }
+
+        // Measurements chart — everything except weight
         const labels = data.map(d => d.date);
-        const datasets = [];
-        const fields = [
-            {key: 'weight', label: 'Weight', color: '#818cf8'},
+        const mFields = [
             {key: 'waist', label: 'Waist', color: '#34d399'},
             {key: 'belly', label: 'Belly', color: '#fbbf24'},
             {key: 'chest', label: 'Chest', color: '#f87171'},
+            {key: 'arm_left', label: 'L Arm', color: '#38bdf8'},
+            {key: 'arm_right', label: 'R Arm', color: '#a78bfa'},
+            {key: 'leg_left', label: 'L Leg', color: '#fb923c'},
+            {key: 'leg_right', label: 'R Leg', color: '#f472b6'},
         ];
-        fields.forEach(f => {
+        const mDatasets = [];
+        mFields.forEach(f => {
             const vals = data.map(d => d[f.key]);
             if (vals.some(v => v !== null)) {
-                datasets.push({
+                mDatasets.push({
                     label: f.label, data: vals,
                     borderColor: f.color, backgroundColor: f.color + '20',
                     tension: 0.3, fill: false,
                 });
             }
         });
-        new Chart(document.getElementById('metricsChart'), {
-            type: 'line',
-            data: { labels, datasets },
-            options: {
-                responsive: true, maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        position: 'top',
-                        labels: { color: '#e0e0e0' }
-                    }
-                },
-                scales: {
-                    x: {
-                        display: true,
-                        ticks: { color: '#888' },
-                        grid: { color: 'rgba(255,255,255,0.08)' }
-                    },
-                    y: {
-                        display: true,
-                        ticks: { color: '#888' },
-                        grid: { color: 'rgba(255,255,255,0.08)' }
-                    }
-                },
-            }
-        });
+        if (mDatasets.length) {
+            new Chart(document.getElementById('measurementsChart'), {
+                type: 'line',
+                data: { labels, datasets: mDatasets },
+                options: chartDefaults,
+            });
+        }
     });
 
+// ─── Strength Chart ───
+fetch('{{ url_for("metrics.api_strength_data") }}')
+    .then(r => r.json())
+    .then(data => {
+        if (!data.length) return;
+
+        // Group by lift, keeping chronological order, use estimated_1rm
+        const lifts = {bench: [], squat: [], deadlift: []};
+        const liftDates = {bench: [], squat: [], deadlift: []};
+        data.forEach(d => {
+            if (lifts[d.lift]) {
+                lifts[d.lift].push(d.estimated_1rm);
+                liftDates[d.lift].push(d.date);
+            }
+        });
+
+        // Build a union of all dates for the x-axis
+        const allDates = [...new Set(data.map(d => d.date))].sort();
+
+        // For each lift, map values to the unified date axis (null if no entry that day)
+        function mapToAxis(lift) {
+            const dateMap = {};
+            liftDates[lift].forEach((d, i) => { dateMap[d] = lifts[lift][i]; });
+            return allDates.map(d => dateMap[d] !== undefined ? dateMap[d] : null);
+        }
+
+        const datasets = [];
+        const liftConfig = [
+            {key: 'bench', label: 'Bench Press', color: '#818cf8'},
+            {key: 'squat', label: 'Squat', color: '#34d399'},
+            {key: 'deadlift', label: 'Deadlift', color: '#f87171'},
+        ];
+        liftConfig.forEach(l => {
+            const vals = mapToAxis(l.key);
+            if (vals.some(v => v !== null)) {
+                datasets.push({
+                    label: l.label, data: vals,
+                    borderColor: l.color, backgroundColor: l.color + '20',
+                    tension: 0.3, fill: false, spanGaps: true,
+                });
+            }
+        });
+
+        if (datasets.length) {
+            new Chart(document.getElementById('strengthChart'), {
+                type: 'line',
+                data: { labels: allDates, datasets },
+                options: chartDefaults,
+            });
+        }
+    });
 </script>
 {% endblock %}

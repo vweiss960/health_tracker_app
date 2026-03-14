@@ -2,7 +2,7 @@
 
 import json
 from datetime import date, timedelta, datetime, timezone
-from models import db, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan, MealPlan, User, WaterEntry, CaffeineEntry
+from models import db, BodyMetric, FoodEntry, TrainingEntry, TrainingPlan, MealPlan, User, WaterEntry, CaffeineEntry, StrengthEntry
 
 
 def _user_today(user_id):
@@ -33,7 +33,7 @@ def _user_today(user_id):
 TOOL_DEFINITIONS = [
     {
         "name": "get_body_metrics_trend",
-        "description": "Get the user's body measurement history and trends (weight, waist, belly, chest, arm, leg circumferences). Use this to analyze progress over time.",
+        "description": "Get the user's body measurement history and trends (weight, waist, belly, chest, arm, leg circumferences). Use this to analyze body composition progress over time. For strength data (bench/squat/deadlift), use get_strength_metrics instead.",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -362,6 +362,24 @@ TOOL_DEFINITIONS = [
             "type": "object",
             "properties": {}
         }
+    },
+    {
+        "name": "get_strength_metrics",
+        "description": "Get the user's strength metrics history for bench press, squat, and deadlift. Returns estimated 1RM (Epley formula) and relative strength (1RM/bodyweight) for squat and deadlift. Use this to analyze strength progress over time.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "days": {
+                    "type": "integer",
+                    "description": "Number of days of history to retrieve (default 30)",
+                    "default": 30
+                },
+                "lift": {
+                    "type": "string",
+                    "description": "Filter by specific lift: 'bench', 'squat', or 'deadlift'. Omit for all lifts."
+                }
+            }
+        }
     }
 ]
 
@@ -385,6 +403,7 @@ def execute_tool(tool_name, tool_input, user_id):
         "get_meal_plan": _get_meal_plan,
         "get_water_intake": _get_water_intake,
         "get_caffeine_intake": _get_caffeine_intake,
+        "get_strength_metrics": _get_strength_metrics,
     }
     handler = handlers.get(tool_name)
     if not handler:
@@ -934,3 +953,51 @@ def _get_caffeine_intake(input_data, user_id):
         "summary": {"days_with_data": len(data), "avg_daily_mg": round(avg, 0)},
         "data": data,
     })
+
+
+def _get_strength_metrics(input_data, user_id):
+    days = input_data.get("days", 30)
+    lift_filter = input_data.get("lift")
+    since = _user_today(user_id) - timedelta(days=days)
+
+    query = StrengthEntry.query.filter(
+        StrengthEntry.user_id == user_id,
+        StrengthEntry.date >= since
+    )
+    if lift_filter:
+        query = query.filter(StrengthEntry.lift == lift_filter)
+
+    entries = query.order_by(StrengthEntry.date.asc()).all()
+
+    if not entries:
+        return json.dumps({"message": "No strength entries recorded yet.", "data": []})
+
+    data = [{
+        "date": e.date.isoformat(),
+        "lift": e.lift,
+        "weight": e.weight,
+        "reps": e.reps,
+        "body_weight": e.body_weight,
+        "estimated_1rm": e.estimated_1rm,
+        "relative_strength": e.relative_strength,
+    } for e in entries]
+
+    # Per-lift summaries
+    summary = {"entries": len(data), "period_days": days}
+    for lift_name in ['bench', 'squat', 'deadlift']:
+        lift_entries = [d for d in data if d["lift"] == lift_name]
+        if lift_entries:
+            best = max(lift_entries, key=lambda x: x["estimated_1rm"])
+            latest = lift_entries[-1]
+            summary[lift_name] = {
+                "entries": len(lift_entries),
+                "best_estimated_1rm": best["estimated_1rm"],
+                "latest_estimated_1rm": latest["estimated_1rm"],
+                "latest_relative_strength": latest["relative_strength"],
+            }
+            if len(lift_entries) >= 2:
+                summary[lift_name]["1rm_change"] = round(
+                    lift_entries[-1]["estimated_1rm"] - lift_entries[0]["estimated_1rm"], 1
+                )
+
+    return json.dumps({"summary": summary, "data": data})
