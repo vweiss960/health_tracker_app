@@ -207,6 +207,7 @@ def _search_youtube_videos(queries, max_per_query=2):
 
                 results.append({
                     'type': 'video',
+                    'video_id': thumb_id,
                     'title': title,
                     'description': f'{channel} • {duration}' if channel and duration else channel or duration or '',
                     'url': url,
@@ -233,24 +234,28 @@ def _generate_content_for_category(category):
     # Search YouTube for real videos
     videos = _search_youtube_videos(selected_video_queries, max_per_query=2)
 
-    # Add article links from predefined queries
-    article_queries = ARTICLE_QUERIES.get(category, ARTICLE_QUERIES['general'])
-    selected_article_queries = random.sample(article_queries, min(2, len(article_queries)))
+    if category == 'cinematic':
+        # Cinematic is purely visual — no articles
+        results = videos[:8]
+    else:
+        # Add article links from predefined queries
+        article_queries = ARTICLE_QUERIES.get(category, ARTICLE_QUERIES['general'])
+        selected_article_queries = random.sample(article_queries, min(2, len(article_queries)))
 
-    articles = []
-    for query in selected_article_queries:
-        articles.append({
-            'type': 'article',
-            'title': query.title(),
-            'description': 'Search for articles and guides on this topic',
-            'url': f'https://www.google.com/search?q={quote_plus(query)}',
-            'thumbnail': '',
-            'source_hint': 'Web Search',
-        })
+        articles = []
+        for query in selected_article_queries:
+            articles.append({
+                'type': 'article',
+                'title': query.title(),
+                'description': 'Search for articles and guides on this topic',
+                'url': f'https://www.google.com/search?q={quote_plus(query)}',
+                'thumbnail': '',
+                'source_hint': 'Web Search',
+            })
 
-    # Combine: YouTube videos + articles
-    results = videos[:6] + articles[:2]
-    results = results[:8]
+        # Combine: YouTube videos + articles
+        results = videos[:6] + articles[:2]
+        results = results[:8]
 
     # Shuffle for variety
     random.shuffle(results)
