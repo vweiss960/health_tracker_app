@@ -51,6 +51,41 @@
     });
 
     loadPlayer();
+
+    // Keep-alive: silent audio context prevents browser from suspending this window
+    (function() {
+        try {
+            var ctx = new (window.AudioContext || window.webkitAudioContext)();
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            gain.gain.value = 0;
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start();
+        } catch(e) {}
+        // Media Session for lock-screen controls
+        if ('mediaSession' in navigator) {
+            var data = localStorage.getItem('gb_music_playing');
+            var title = 'GritBoard Music';
+            try { title = JSON.parse(data).title || title; } catch(e) {}
+            navigator.mediaSession.metadata = new MediaMetadata({ title: title, artist: 'GritBoard' });
+            navigator.mediaSession.playbackState = 'playing';
+        }
+        // Re-acquire wake lock on visibility change
+        var wl = null;
+        function reqWake() {
+            if ('wakeLock' in navigator) {
+                navigator.wakeLock.request('screen').then(function(l) {
+                    wl = l;
+                    l.addEventListener('release', function() { wl = null; });
+                }).catch(function() {});
+            }
+        }
+        reqWake();
+        document.addEventListener('visibilitychange', function() {
+            if (document.visibilityState === 'visible') reqWake();
+        });
+    })();
     </script>
 </body>
 </html>

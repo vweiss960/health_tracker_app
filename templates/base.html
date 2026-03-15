@@ -161,6 +161,7 @@
             <!-- Track controls (shown in inline/mobile mode for playlists) -->
             <div id="miniTrackControls" style="display:none; flex-shrink:0; gap:0.25rem;">
                 <button type="button" class="btn btn-sm" onclick="miniPlayerPrev()" style="background:var(--border, #333); padding:0.4rem 0.5rem; line-height:0;" title="Previous track"><svg width="20" height="16" viewBox="0 0 20 16"><polygon points="10,0 0,8 10,16" fill="#c0392b"/><polygon points="20,0 10,8 20,16" fill="#c0392b"/></svg></button>
+                <button type="button" class="btn btn-sm" id="miniShuffleBtn" onclick="miniPlayerShuffle()" style="background:var(--border, #333); padding:0.4rem 0.5rem; line-height:0;" title="Shuffle"><svg width="18" height="16" viewBox="0 0 18 16"><path d="M1,4 L5,4 L8,8 L5,12 L1,12" fill="none" stroke="#999" stroke-width="1.5"/><path d="M1,12 L5,12 L8,8 L5,4 L1,4" fill="none" stroke="#999" stroke-width="1.5" transform="translate(6,0)"/><polygon points="15,2 18,5 15,8" fill="#999"/><polygon points="15,8 18,11 15,14" fill="#999"/></svg></button>
                 <button type="button" class="btn btn-sm" onclick="miniPlayerNext()" style="background:var(--border, #333); padding:0.4rem 0.5rem; line-height:0;" title="Next track"><svg width="20" height="16" viewBox="0 0 20 16"><polygon points="0,0 10,8 0,16" fill="#c0392b"/><polygon points="10,0 20,8 10,16" fill="#c0392b"/></svg></button>
             </div>
             <div style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
@@ -284,15 +285,24 @@
             width: '1',
             playerVars: playerVars,
             events: {
+                onReady: function(e) {
+                    // Once playlist is ready, grab the video list for shuffle
+                    setTimeout(function() { _gbCapturePlaylist(); }, 1500);
+                },
                 onStateChange: function(e) {
-                    // Update track title when a new video starts playing
                     if (e.data === YT.PlayerState.PLAYING && _gbYtPlayer) {
+                        // Capture playlist on first play if not yet captured
+                        if (!_gbPlaylistIds.length) _gbCapturePlaylist();
                         try {
                             var vd = _gbYtPlayer.getVideoData();
                             if (vd && vd.title) {
                                 document.getElementById('miniPlayerTitle').textContent = vd.title;
                             }
                         } catch(ex) {}
+                    }
+                    // When a video ends and shuffle is on, pick a random next track
+                    if (e.data === YT.PlayerState.ENDED && _gbShuffleOn && _gbPlaylistIds.length > 1) {
+                        _gbPlayShuffleNext();
                     }
                 }
             }
@@ -307,6 +317,9 @@
 
         _gbYtPlayer = new YT.Player('miniPlayerDiv', opts);
 
+        // Start keep-alive to prevent audio suspension on screen-off
+        _gbStartKeepAlive();
+
         // Show track controls for playlists
         var controls = document.getElementById('miniTrackControls');
         if (controls) {
@@ -314,17 +327,175 @@
         }
     }
 
+    // --- Client-side shuffle implementation ---
+    var _gbShuffleOn = false;
+    var _gbPlaylistIds = [];      // original playlist video IDs
+    var _gbShuffledOrder = [];    // shuffled index array
+    var _gbShufflePos = 0;        // current position in shuffled order
+
+    function _gbCapturePlaylist() {
+        if (!_gbYtPlayer || !_gbYtPlayer.getPlaylist) return;
+        try {
+            var pl = _gbYtPlayer.getPlaylist();
+            if (pl && pl.length) {
+                _gbPlaylistIds = pl;
+                _gbRebuildShuffleOrder();
+            }
+        } catch(e) {}
+    }
+
+    function _gbRebuildShuffleOrder() {
+        // Fisher-Yates shuffle of indices
+        _gbShuffledOrder = [];
+        for (var i = 0; i < _gbPlaylistIds.length; i++) _gbShuffledOrder.push(i);
+        for (var i = _gbShuffledOrder.length - 1; i > 0; i--) {
+            var j = Math.floor(Math.random() * (i + 1));
+            var tmp = _gbShuffledOrder[i];
+            _gbShuffledOrder[i] = _gbShuffledOrder[j];
+            _gbShuffledOrder[j] = tmp;
+        }
+        _gbShufflePos = 0;
+    }
+
+    function _gbPlayShuffleNext() {
+        if (!_gbPlaylistIds.length) return;
+        _gbShufflePos++;
+        if (_gbShufflePos >= _gbShuffledOrder.length) {
+            // Reshuffle when we've gone through all tracks
+            _gbRebuildShuffleOrder();
+        }
+        var idx = _gbShuffledOrder[_gbShufflePos];
+        try { _gbYtPlayer.playVideoAt(idx); } catch(e) {}
+    }
+
+    function _gbPlayShufflePrev() {
+        if (!_gbPlaylistIds.length) return;
+        _gbShufflePos--;
+        if (_gbShufflePos < 0) _gbShufflePos = _gbShuffledOrder.length - 1;
+        var idx = _gbShuffledOrder[_gbShufflePos];
+        try { _gbYtPlayer.playVideoAt(idx); } catch(e) {}
+    }
+
     function miniPlayerPrev() {
-        if (_gbYtPlayer && _gbYtPlayer.previousVideo) {
+        if (_gbShuffleOn && _gbPlaylistIds.length > 1) {
+            _gbPlayShufflePrev();
+        } else if (_gbYtPlayer && _gbYtPlayer.previousVideo) {
             try { _gbYtPlayer.previousVideo(); } catch(e) {}
         }
     }
 
     function miniPlayerNext() {
-        if (_gbYtPlayer && _gbYtPlayer.nextVideo) {
+        if (_gbShuffleOn && _gbPlaylistIds.length > 1) {
+            _gbPlayShuffleNext();
+        } else if (_gbYtPlayer && _gbYtPlayer.nextVideo) {
             try { _gbYtPlayer.nextVideo(); } catch(e) {}
         }
     }
+
+    function miniPlayerShuffle() {
+        _gbShuffleOn = !_gbShuffleOn;
+        if (_gbShuffleOn) {
+            // Capture playlist if not yet done and rebuild shuffle order
+            if (!_gbPlaylistIds.length) _gbCapturePlaylist();
+            _gbRebuildShuffleOrder();
+            // Immediately jump to a random track
+            if (_gbPlaylistIds.length > 1) {
+                _gbPlayShuffleNext();
+            }
+        }
+        // Visual feedback
+        var btn = document.getElementById('miniShuffleBtn');
+        if (btn) {
+            btn.style.background = _gbShuffleOn ? 'var(--accent, #c0392b)' : 'var(--border, #333)';
+            btn.title = _gbShuffleOn ? 'Shuffle: ON' : 'Shuffle: OFF';
+            var svg = btn.querySelector('svg');
+            if (svg) {
+                svg.querySelectorAll('path').forEach(function(p) { p.setAttribute('stroke', _gbShuffleOn ? '#fff' : '#999'); });
+                svg.querySelectorAll('polygon').forEach(function(p) { p.setAttribute('fill', _gbShuffleOn ? '#fff' : '#999'); });
+            }
+        }
+        // Also update music page shuffle btn if present
+        var pageBtn = document.getElementById('shuffleBtn');
+        if (pageBtn) {
+            pageBtn.textContent = _gbShuffleOn ? 'Shuffle: ON' : 'Shuffle';
+            pageBtn.style.background = _gbShuffleOn ? 'var(--accent, #c0392b)' : 'var(--border)';
+            pageBtn.style.color = _gbShuffleOn ? '#fff' : '';
+        }
+    }
+
+    // --- Keep-alive: prevent browser from suspending audio when screen is off ---
+    var _gbAudioCtx = null;
+    var _gbKeepAliveSource = null;
+    var _gbWakeLock = null;
+
+    function _gbStartKeepAlive() {
+        // 1. Silent audio context keeps the audio pipeline active
+        if (!_gbAudioCtx) {
+            try {
+                _gbAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            } catch(e) {}
+        }
+        if (_gbAudioCtx && !_gbKeepAliveSource) {
+            try {
+                // Create a silent oscillator (inaudible)
+                var osc = _gbAudioCtx.createOscillator();
+                var gain = _gbAudioCtx.createGain();
+                gain.gain.value = 0; // completely silent
+                osc.connect(gain);
+                gain.connect(_gbAudioCtx.destination);
+                osc.start();
+                _gbKeepAliveSource = osc;
+            } catch(e) {}
+        }
+        // Resume context if suspended (browsers suspend on user-idle)
+        if (_gbAudioCtx && _gbAudioCtx.state === 'suspended') {
+            _gbAudioCtx.resume();
+        }
+        // 2. Request wake lock if available (keeps CPU active, screen can dim)
+        if ('wakeLock' in navigator && !_gbWakeLock) {
+            navigator.wakeLock.request('screen').then(function(lock) {
+                _gbWakeLock = lock;
+                lock.addEventListener('release', function() { _gbWakeLock = null; });
+            }).catch(function() {});
+        }
+        // 3. Register Media Session so OS knows audio is playing
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: document.getElementById('miniPlayerTitle').textContent || 'GritBoard Music',
+                artist: 'GritBoard',
+            });
+            navigator.mediaSession.playbackState = 'playing';
+            navigator.mediaSession.setActionHandler('pause', function() { stopMusicGlobal(); });
+            navigator.mediaSession.setActionHandler('play', function() { _gbLoadMiniFrame(); });
+            navigator.mediaSession.setActionHandler('previoustrack', function() { miniPlayerPrev(); });
+            navigator.mediaSession.setActionHandler('nexttrack', function() { miniPlayerNext(); });
+        }
+    }
+
+    function _gbStopKeepAlive() {
+        if (_gbKeepAliveSource) {
+            try { _gbKeepAliveSource.stop(); } catch(e) {}
+            _gbKeepAliveSource = null;
+        }
+        if (_gbAudioCtx) {
+            try { _gbAudioCtx.close(); } catch(e) {}
+            _gbAudioCtx = null;
+        }
+        if (_gbWakeLock) {
+            try { _gbWakeLock.release(); } catch(e) {}
+            _gbWakeLock = null;
+        }
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.playbackState = 'none';
+        }
+    }
+
+    // Re-acquire wake lock when page becomes visible again (lock auto-releases on hide)
+    document.addEventListener('visibilitychange', function() {
+        if (document.visibilityState === 'visible' && localStorage.getItem('gb_music_playing')) {
+            _gbStartKeepAlive();
+        }
+    });
 
     function stopMusicGlobal() {
         localStorage.removeItem('gb_music_playing');
@@ -334,6 +505,8 @@
             try { _gbYtPlayer.destroy(); } catch(e) {}
             _gbYtPlayer = null;
         }
+        // Stop keep-alive
+        _gbStopKeepAlive();
         // Try to close popup
         try { if (_gbPopup && !_gbPopup.closed) _gbPopup.close(); } catch(e) {}
         document.getElementById('miniPlayer').style.display = 'none';
@@ -354,6 +527,8 @@
                 document.getElementById('miniPlayer').style.display = 'block';
                 document.body.style.paddingBottom = '3.5rem';
                 var mode = _gbGetMode();
+                // Start keep-alive for background audio persistence
+                _gbStartKeepAlive();
                 if (mode === 'inline') {
                     // Mobile/PWA: start YT API player in mini bar
                     document.getElementById('miniShowPlayerBtn').style.display = 'none';

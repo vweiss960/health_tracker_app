@@ -38,6 +38,7 @@
         <h2 id="nowPlayingTitle" style="margin-bottom: 0;">Now Playing</h2>
         <div style="display: flex; gap: 0.5rem;">
             <button type="button" class="btn btn-sm" style="background: var(--border);" id="moreLikeBtn" onclick="moreLikeThis()" style="display:none;">More like this</button>
+            <button type="button" class="btn btn-sm" id="shuffleBtn" style="background: var(--border);" onclick="toggleShuffle()">Shuffle</button>
             <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="showPopupPlayer()">Pop Out</button>
             <a id="openOnYtBtn" href="#" target="_blank" class="btn btn-sm" style="background: var(--border); display: none;">Open on YouTube</a>
             <button type="button" class="btn btn-sm btn-danger" onclick="stopPlayer()">Stop</button>
@@ -87,7 +88,7 @@
                     </div>
                 </div>
             </div>
-            <div style="display:flex; gap:0.25rem; flex-shrink:0; align-self:center;">
+            <div class="music-result-actions">
                 <button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation(); removeSaved({{ sp.id }}, this)">Remove</button>
             </div>
         </div>
@@ -193,7 +194,7 @@ function renderResults(container, results, showSaveBtn) {
                         </div>
                     </div>
                 </div>
-                <div style="display:flex; gap:0.25rem; flex-shrink:0; align-self:center;">
+                <div class="music-result-actions">
                     ${saveBtn}
                     ${hasId && hasYtKey ? `<button type="button" class="btn btn-sm" style="background:var(--border); white-space:nowrap;" onclick="event.stopPropagation(); showTracklist('${r.id}')">Tracks</button>` : ''}
                     <a href="${ytUrl}" target="_blank" class="btn btn-sm"
@@ -301,11 +302,15 @@ function loadTracklist(playlistId) {
             content.innerHTML = '<p style="color: var(--text-muted); font-size: 0.85rem;">No tracks found.</p>';
             return;
         }
+        // Store tracks for playback by index
+        window._gbTracklistData = data.tracks;
+        window._gbTracklistPlaylistId = playlistId;
         content.innerHTML = data.tracks.map((t, i) => `
-            <div style="display:flex; gap:0.5rem; padding:0.3rem 0; font-size:0.85rem; border-bottom:1px solid var(--border);">
-                <span style="color:var(--text-muted); min-width:1.5rem; text-align:right;">${i + 1}.</span>
+            <div class="tracklist-item${t.videoId ? ' tracklist-playable' : ''}" style="display:flex; gap:0.5rem; padding:0.4rem 0.25rem; font-size:0.85rem; border-bottom:1px solid var(--border); align-items:center;${t.videoId ? ' cursor:pointer;' : ''}" ${t.videoId ? `onclick="playTrack('${escapeAttr(t.videoId)}', '${escapeAttr(t.title)}', ${t.position}, '${escapeAttr(playlistId)}')"` : ''}>
+                <span style="color:var(--text-muted); min-width:1.5rem; text-align:right; flex-shrink:0;">${i + 1}.</span>
                 <span style="flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(t.title)}</span>
-                ${t.channel ? `<span style="color:var(--text-muted); font-size:0.75rem; flex-shrink:0;">${escapeHtml(t.channel)}</span>` : ''}
+                ${t.videoId ? '<svg width="12" height="14" viewBox="0 0 12 14" style="flex-shrink:0; opacity:0.8;"><polygon points="0,0 12,7 0,14" fill="#c0392b"/></svg>' : ''}
+                ${t.channel ? `<span style="color:var(--text-muted); font-size:0.75rem; flex-shrink:0; max-width:120px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(t.channel)}</span>` : ''}
             </div>
         `).join('');
     })
@@ -324,6 +329,58 @@ function showTracklist(playlistId) {
     document.getElementById('playerArea').style.display = 'block';
     loadTracklist(playlistId);
     panel.scrollIntoView({behavior: 'smooth', block: 'nearest'});
+}
+
+function playTrack(videoId, title, position, playlistId) {
+    if (!videoId) return;
+
+    // Highlight the selected track
+    document.querySelectorAll('.tracklist-item').forEach(function(el) { el.classList.remove('tracklist-active'); });
+    var items = document.querySelectorAll('.tracklist-item');
+    if (items[position]) items[position].classList.add('tracklist-active');
+
+    // If we have an inline YT player with this playlist loaded, jump to the track index
+    if (_gbYtPlayer && _gbYtPlayer.playVideoAt && window._gbTracklistPlaylistId === playlistId) {
+        try {
+            _gbYtPlayer.playVideoAt(position);
+            document.getElementById('nowPlayingTitle').textContent = title;
+            return;
+        } catch(e) {}
+    }
+
+    // Otherwise play as a standalone video
+    var embedUrl = 'https://www.youtube.com/embed/' + videoId + '?autoplay=1';
+    var ytLink = 'https://www.youtube.com/watch?v=' + videoId;
+
+    document.getElementById('nowPlayingTitle').textContent = title;
+    document.getElementById('playerArea').style.display = 'block';
+    document.getElementById('openOnYtBtn').href = ytLink;
+    document.getElementById('openOnYtBtn').style.display = 'inline-flex';
+
+    localStorage.setItem('gb_music_playing', JSON.stringify({
+        embedUrl: embedUrl,
+        title: title,
+        ytLink: ytLink,
+        type: 'video',
+        id: videoId
+    }));
+
+    openPopupPlayer();
+    setTimeout(function() {
+        if (_gbGetMode() === 'inline') {
+            _gbShowInlinePlayer(embedUrl);
+        } else {
+            document.getElementById('playerInfoDesktop').style.display = 'block';
+            document.getElementById('playerMobileEmbed').style.display = 'none';
+        }
+    }, 150);
+}
+
+function toggleShuffle() {
+    // Delegate to mini player shuffle (handles state + visual feedback for both buttons)
+    if (typeof miniPlayerShuffle === 'function') {
+        miniPlayerShuffle();
+    }
 }
 
 function moreLikeThis() {

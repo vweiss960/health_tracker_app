@@ -592,12 +592,14 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
 .music-results { display: flex; flex-direction: column; gap: 0.5rem; }
 .music-result-card {
     display: flex;
-    gap: 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.5rem;
     padding: 0.5rem;
     border: 1px solid var(--border);
     border-radius: var(--radius);
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
+    align-items: center;
 }
 .music-result-card:hover { background: #252525; }
 .music-result-card.active { border-color: var(--accent); background: rgba(230,57,70,0.1); }
@@ -610,7 +612,8 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
 }
 .music-result-info { flex: 1; min-width: 0; display: flex; flex-direction: column; justify-content: center; }
 .music-result-title { font-weight: 600; font-size: 0.9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.music-result-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; display: flex; align-items: center; gap: 0.4rem; }
+.music-result-meta { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.2rem; display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.music-result-actions { display: flex; gap: 0.25rem; flex-shrink: 0; align-self: center; }
 .music-nokey-icon {
     width: 60px;
     height: 60px;
@@ -624,6 +627,9 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
     flex-shrink: 0;
 }
 .music-result-card.active .music-nokey-icon { background: var(--primary-dark); }
+.tracklist-playable:hover { background: rgba(255,255,255,0.05); border-radius: 4px; }
+.tracklist-active { background: rgba(230,57,70,0.15); border-radius: 4px; }
+.tracklist-active span:first-child { color: var(--accent) !important; }
 
 /* Single Item Modal */
 .single-item-modal {
@@ -841,8 +847,9 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
     .chat-input-area textarea { min-height: 60px; max-height: 150px; font-size: 1rem; }
 
     /* Music */
-    .music-result-card { flex-wrap: wrap; }
+    .music-result-card .music-result-actions { width: 100%; justify-content: flex-end; border-top: 1px solid var(--border); padding-top: 0.4rem; margin-top: 0.1rem; }
     .music-result-card img { width: 80px; height: 45px; }
+    .music-result-title { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 
     /* Settings API key rows */
     .card [style*="display: flex"][style*="gap"] { flex-wrap: wrap; }
@@ -860,6 +867,7 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
     .stat-card .value { font-size: 1rem; }
     .photo-grid { grid-template-columns: repeat(2, 1fr); }
     .music-result-card img { width: 60px; height: 34px; }
+    .music-result-card .music-result-actions .btn { font-size: 0.7rem; padding: 0.2rem 0.4rem; }
 }
 
 /* Links */

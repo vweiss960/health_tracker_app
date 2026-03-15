@@ -102,6 +102,18 @@ def music_search():
     if yt_key:
         results = _enrich_and_sort_playlists(yt_key, results)
 
+    # Step 4: Deduplicate and prefer results with thumbnails
+    results = _dedupe_and_prefer_thumbnails(results)
+
+    # Step 5: Filter out user's already-saved playlists
+    saved_ids = {sp.youtube_id for sp in SavedPlaylist.query.filter_by(user_id=current_user.id).all()}
+    if saved_ids:
+        results = [r for r in results if r.get('id', '') not in saved_ids]
+
+    # Step 6: Filter out search-only fallbacks and ensure exactly 6 results
+    results = [r for r in results if r.get('type') != 'search'] or results
+    results = results[:6]
+
     return jsonify({'search_query': prompt, 'results': results})
 
 
@@ -145,6 +157,15 @@ def more_like_this():
     if yt_key:
         results = _enrich_and_sort_playlists(yt_key, results)
 
+    # Deduplicate, prefer thumbnails, filter saved
+    results = _dedupe_and_prefer_thumbnails(results)
+    saved_ids = {sp.youtube_id for sp in SavedPlaylist.query.filter_by(user_id=current_user.id).all()}
+    if saved_ids:
+        results = [r for r in results if r.get('id', '') not in saved_ids]
+
+    results = [r for r in results if r.get('type') != 'search'] or results
+    results = results[:6]
+
     return jsonify({'results': results})
 
 
@@ -154,7 +175,7 @@ def _ai_music_suggestions(provider, api_key, user_prompt):
 
     system = (
         "You are a music recommendation assistant. The user describes what they want to listen to. "
-        "Return a JSON array of 6 music suggestions. Each item should be an object with:\n"
+        "Return a JSON array of 10 music suggestions. Each item should be an object with:\n"
         '- "title": A descriptive title for this suggestion\n'
         '- "query": An optimized YouTube Music search query to find this (be specific with genres, artists, descriptors)\n'
         '- "description": A one-line description of why this fits\n\n'
@@ -170,7 +191,7 @@ def _ai_music_suggestions(provider, api_key, user_prompt):
             resp = client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "system", "content": system}] + messages,
-                max_tokens=800,
+                max_tokens=1200,
             )
             text = resp.choices[0].message.content.strip()
         else:
@@ -178,7 +199,7 @@ def _ai_music_suggestions(provider, api_key, user_prompt):
             client = anthropic.Anthropic(api_key=api_key)
             resp = client.messages.create(
                 model="claude-sonnet-4-20250514",
-                max_tokens=800,
+                max_tokens=1200,
                 system=system,
                 messages=messages,
             )
@@ -205,20 +226,21 @@ def _resolve_with_ytmusic(suggestions):
     def resolve(s):
         query = s.get('query', '')
         if not query:
-            return _search_fallback(s)
+            return [_search_fallback(s)]
 
         try:
-            results = ytmusic.search(query, filter='playlists', limit=3)
-            if not results:
-                return _search_fallback(s)
+            search_results = ytmusic.search(query, filter='playlists', limit=3)
+            if not search_results:
+                return [_search_fallback(s)]
 
-            for item in results:
+            found = []
+            for item in search_results:
                 playlist_id = item.get('browseId', '')
                 # browseId format is VL + playlistId, strip VL prefix
                 if playlist_id.startswith('VL'):
                     playlist_id = playlist_id[2:]
                 if playlist_id:
-                    return {
+                    found.append({
                         'type': 'playlist',
                         'id': playlist_id,
                         'title': item.get('title', '') or s.get('title', query),
@@ -226,14 +248,16 @@ def _resolve_with_ytmusic(suggestions):
                         'thumbnail': _best_thumbnail(item),
                         'description': s.get('description', ''),
                         'query': query,
-                    }
+                    })
+            return found if found else [_search_fallback(s)]
         except Exception:
             pass
 
-        return _search_fallback(s)
+        return [_search_fallback(s)]
 
     with ThreadPoolExecutor(max_workers=6) as executor:
-        results = list(executor.map(resolve, suggestions))
+        nested = list(executor.map(resolve, suggestions))
+    results = [r for group in nested for r in group]
 
     return results
 
@@ -254,34 +278,37 @@ def _resolve_with_youtube_api(api_key, suggestions):
     def resolve(s):
         query = s.get('query', '')
         if not query:
-            return _search_fallback(s)
+            return [_search_fallback(s)]
         try:
             resp = requests.get('https://www.googleapis.com/youtube/v3/search', params={
                 'part': 'snippet',
                 'q': query,
                 'type': 'playlist',
-                'maxResults': 1,
+                'maxResults': 3,
                 'key': api_key,
             }, timeout=5)
             resp.raise_for_status()
             items = resp.json().get('items', [])
             if items:
-                item = items[0]
-                return {
-                    'type': 'playlist',
-                    'id': item['id']['playlistId'],
-                    'title': item['snippet']['title'],
-                    'channel': item['snippet']['channelTitle'],
-                    'thumbnail': item['snippet']['thumbnails'].get('medium', {}).get('url', ''),
-                    'description': s.get('description', ''),
-                    'query': query,
-                }
+                found = []
+                for item in items:
+                    found.append({
+                        'type': 'playlist',
+                        'id': item['id']['playlistId'],
+                        'title': item['snippet']['title'],
+                        'channel': item['snippet']['channelTitle'],
+                        'thumbnail': item['snippet']['thumbnails'].get('medium', {}).get('url', ''),
+                        'description': s.get('description', ''),
+                        'query': query,
+                    })
+                return found
         except Exception:
             pass
-        return _search_fallback(s)
+        return [_search_fallback(s)]
 
     with ThreadPoolExecutor(max_workers=6) as executor:
-        results = list(executor.map(resolve, suggestions))
+        nested = list(executor.map(resolve, suggestions))
+    results = [r for group in nested for r in group]
 
     return results
 
@@ -331,10 +358,12 @@ def _fetch_playlist_tracks(api_key, playlist_id, max_tracks=25):
         resp.raise_for_status()
         for item in resp.json().get('items', []):
             snippet = item.get('snippet', {})
+            video_id = snippet.get('resourceId', {}).get('videoId', '')
             tracks.append({
                 'title': snippet.get('title', ''),
                 'channel': snippet.get('videoOwnerChannelTitle', ''),
                 'position': snippet.get('position', 0),
+                'videoId': video_id,
             })
     except Exception:
         pass
@@ -397,6 +426,27 @@ def _more_like_this_ytmusic(search_term):
         pass
 
     return results
+
+
+def _dedupe_and_prefer_thumbnails(results):
+    """Remove duplicate playlist IDs, keeping the one with a thumbnail if available."""
+    seen = {}
+    for r in results:
+        rid = r.get('id', '')
+        if not rid:
+            # Keep all fallback/search results
+            seen[id(r)] = r
+            continue
+        if rid in seen:
+            # Replace if existing has no thumbnail but this one does
+            if not seen[rid].get('thumbnail') and r.get('thumbnail'):
+                seen[rid] = r
+        else:
+            seen[rid] = r
+    # Sort: items with thumbnails first, then by track_count desc
+    deduped = list(seen.values())
+    deduped.sort(key=lambda r: (0 if r.get('thumbnail') else 1, -(r.get('track_count') or 0)))
+    return deduped
 
 
 def _search_fallback(s):
