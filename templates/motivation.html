@@ -154,8 +154,8 @@ function showResults(items) {
                 </div>`;
         } else {
             return `
-                <a href="${r.url}" target="_blank" rel="noopener" style="text-decoration: none; color: inherit; display: block;">
-                    <div class="motivation-card">
+                <div class="motivation-card" style="position:relative;">
+                    <a href="${r.url}" target="_blank" rel="noopener" style="text-decoration: none; color: inherit; display: flex; gap: 0.75rem; flex: 1; min-width: 0;">
                         ${thumb}
                         <div style="flex: 1; min-width: 0;">
                             <div style="font-weight: 600; font-size: 0.95rem; margin-bottom: 0.25rem;">${escapeHtml(r.title)}</div>
@@ -165,8 +165,9 @@ function showResults(items) {
                                 ${sourceHint}
                             </div>
                         </div>
-                    </div>
-                </a>`;
+                    </a>
+                    <button class="btn btn-sm" style="background:var(--accent);color:#fff;flex-shrink:0;align-self:flex-start;" onclick="event.stopPropagation();showShareMotivationModal(${JSON.stringify(r.url)}, ${JSON.stringify(r.title)})">Share</button>
+                </div>`;
         }
     }).join('');
 
@@ -245,5 +246,53 @@ document.addEventListener('DOMContentLoaded', function() {
     loadContent('general', document.querySelector('.cat-btn[data-cat="general"]'));
 });
 {% endif %}
+
+function showShareMotivationModal(url, title) {
+    var existing = document.getElementById('shareMotivationModal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'shareMotivationModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML =
+        '<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;max-width:420px;width:100%;">' +
+            '<h3 style="margin-bottom:0.6rem;">Share Motivation Link</h3>' +
+            '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.6rem;">' + title + '</p>' +
+            '<div class="form-group" style="margin-bottom:0.6rem;">' +
+                '<label>Send to Friend</label>' +
+                '<select id="smRecipient"><option value="">Loading…</option></select>' +
+            '</div>' +
+            '<div class="form-group" style="margin-bottom:0.75rem;">' +
+                '<label>Message (optional)</label>' +
+                '<input type="text" id="smMessage" placeholder="Found this for you!" maxlength="500">' +
+            '</div>' +
+            '<div style="display:flex;gap:0.5rem;">' +
+                '<button class="btn btn-primary" onclick="sendMotivationShare(' + JSON.stringify(url) + ', ' + JSON.stringify(title) + ')">Send</button>' +
+                '<button class="btn" style="background:var(--border);" onclick="document.getElementById(\'shareMotivationModal\').remove()">Cancel</button>' +
+            '</div>' +
+            '<div id="smStatus" style="margin-top:0.5rem;"></div>' +
+        '</div>';
+    document.body.appendChild(modal);
+    fetch('/social/api/friends').then(r=>r.json()).then(function(friends) {
+        var sel = document.getElementById('smRecipient');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— select friend —</option>' +
+            friends.map(f=>'<option value="'+f.id+'">'+f.display_name+' (@'+f.username+')</option>').join('');
+    }).catch(()=>{ var s=document.getElementById('smRecipient'); if(s) s.innerHTML='<option value="">No friends yet</option>'; });
+}
+
+function sendMotivationShare(url, title) {
+    var recipientId = parseInt(document.getElementById('smRecipient').value);
+    var message = document.getElementById('smMessage').value.trim();
+    var status = document.getElementById('smStatus');
+    if (!recipientId) { alert('Select a friend.'); return; }
+    fetch('/social/share', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]').content},
+        body:JSON.stringify({recipient_id:recipientId, item_type:'motivation_link', url:url, title:title, message:message})
+    }).then(r=>r.json()).then(function(d) {
+        if (d.ok) { status.innerHTML='<span style="color:var(--accent);">Sent!</span>'; setTimeout(()=>{var m=document.getElementById('shareMotivationModal');if(m)m.remove();}, 1200); }
+        else status.innerHTML='<span style="color:var(--danger);">'+(d.error||'Error')+'</span>';
+    });
+}
 </script>
 {% endblock %}

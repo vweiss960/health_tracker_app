@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}{{ challenge.title }} – GritBoard{% endblock %}
+{% block content %}
+<a href="{{ url_for('social.index') }}" style="font-size:0.85rem; color:var(--text-muted);">← Back to Social</a>
+<h2 style="margin:0.5rem 0 0.25rem;">{{ challenge.title }}</h2>
+<p style="color:var(--text-muted); font-size:0.85rem; margin-bottom:0.75rem;">
+  {{ challenge.challenge_type.replace('_',' ').title() }} · Target: {{ challenge.target_value|int }}
+  · {{ challenge.start_date.strftime('%b %d') }}–{{ challenge.end_date.strftime('%b %d, %Y') }}
+  {% if challenge.end_date < today %}<span style="color:var(--danger); font-weight:700;"> (Ended)</span>{% endif %}
+</p>
+{% if challenge.description %}<p style="margin-bottom:0.75rem;">{{ challenge.description }}</p>{% endif %}
+
+{% if my_part %}
+<div style="background:var(--surface); border:1px solid var(--border); border-radius:var(--radius); padding:0.75rem; margin-bottom:1rem;">
+  <strong>Your Progress:</strong> {{ my_part.value|int }} / {{ challenge.target_value|int }}
+  <div style="background:var(--border); border-radius:4px; height:10px; overflow:hidden; margin-top:0.4rem;">
+    <div style="background:var(--accent); height:10px; border-radius:4px; width:{{ [[[(my_part.value / challenge.target_value * 100)|int, 0]|max, 100]|min] | first }}%;"></div>
+  </div>
+</div>
+{% endif %}
+
+<h3 style="margin-bottom:0.6rem;">Leaderboard</h3>
+{% for entry in board %}
+<div style="display:flex; align-items:center; gap:0.75rem; padding:0.55rem 0.75rem; border:1px solid var(--border); border-radius:var(--radius); background:var(--surface); margin-bottom:0.4rem; {{ 'border-left:3px solid var(--accent);' if entry.user.id == current_user.id }}">
+  <span style="font-weight:700; min-width:1.4rem; color:{% if loop.index == 1 %}#fbbf24{% elif loop.index == 2 %}#9ca3af{% elif loop.index == 3 %}#cd7f32{% else %}var(--text-muted){% endif %};">{{ loop.index }}</span>
+  <span style="flex:1; font-weight:{% if entry.user.id == current_user.id %}700{% else %}400{% endif %};">
+    {{ entry.user.display_name or entry.user.username }}
+    {% if entry.user.id == current_user.id %}<span style="font-size:0.75rem; color:var(--accent);"> (you)</span>{% endif %}
+  </span>
+  <span style="font-weight:600;">{{ entry.value|int }}</span>
+  <div style="width:80px; background:var(--border); border-radius:4px; height:6px; overflow:hidden;">
+    <div style="background:var(--accent); height:6px; border-radius:4px; width:{{ [[[(entry.value / challenge.target_value * 100)|int, 0]|max, 100]|min] | first }}%;"></div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

@@ -19,6 +19,15 @@
         document.cookie = 'client_today=' + y + '-' + m + '-' + d + ';path=/;SameSite=Lax';
     })();
     </script>
+    <style>
+    /* Desktop: show dot badge, hide text label */
+    .nav-badge-text { display: none !important; }
+    /* Mobile: hide dot badge, show text label inline */
+    @media (max-width: 768px) {
+        .nav-badge-dot { display: none !important; }
+        .nav-badge-text { display: inline !important; }
+    }
+    </style>
     {% block head %}{% endblock %}
 </head>
 <body>
@@ -45,6 +54,7 @@
                     <a href="{{ url_for('motivation.motivation_page') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('motivation') }}">Motivation</a>
                 </div>
             </div>
+            <a href="{{ url_for('social.index') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('social') }}" style="position:relative;">Social{% if pending_friend_requests %}<span class="nav-badge-dot" style="position:absolute;top:-6px;right:-10px;background:#c0392b;color:#fff;border-radius:50%;font-size:0.65rem;font-weight:700;min-width:16px;height:16px;line-height:16px;text-align:center;padding:0 3px;">{{ pending_friend_requests }}</span><span class="nav-badge-text" style="display:none;margin-left:0.5rem;background:#c0392b;color:#fff;border-radius:10px;font-size:0.72rem;font-weight:700;padding:0.1rem 0.5rem;vertical-align:middle;white-space:nowrap;">{{ pending_friend_requests }} Pending Friend Request{{ 's' if pending_friend_requests != 1 }}</span>{% endif %}</a>
             <a href="{{ url_for('settings.settings') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('settings') }}">Settings</a>
             {% if current_user.is_admin %}
             <a href="{{ url_for('admin.dashboard') }}" class="{{ 'active' if request.endpoint and request.endpoint.startswith('admin') }}" style="color: #fbbf24;">Admin</a>
@@ -65,6 +75,30 @@
     </div>
 
     <script>
+    // Force dark theme on all inputs/selects/textareas (Android WebView ignores CSS on these)
+    function _applyDarkInputs() {
+        var els = document.querySelectorAll(
+            'input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="hidden"]):not([type="submit"]):not([type="button"]),' +
+            'textarea, select'
+        );
+        for (var i = 0; i < els.length; i++) {
+            els[i].style.setProperty('background', '#2a2a2a', 'important');
+            els[i].style.setProperty('color', '#e0e0e0', 'important');
+            els[i].style.setProperty('border', '1px solid #3a3a3a', 'important');
+            els[i].style.setProperty('border-radius', '6px', 'important');
+        }
+    }
+    document.addEventListener('DOMContentLoaded', _applyDarkInputs);
+    // Also run after any dynamic content is added (e.g. barcode result forms)
+    var _gbInputObserver = new MutationObserver(function(mutations) {
+        for (var m of mutations) {
+            if (m.addedNodes.length) _applyDarkInputs();
+        }
+    });
+    document.addEventListener('DOMContentLoaded', function() {
+        _gbInputObserver.observe(document.body, { childList: true, subtree: true });
+    });
+
     // Auto-inject CSRF token into all POST forms
     document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('form[method="POST"], form[method="post"]').forEach(function(form) {
@@ -131,10 +165,53 @@
     });
     </script>
     {% endif %}
-    <!-- Service worker + PWA install prompt -->
+    <!-- Service worker + PWA install prompt + push notifications -->
     <script>
     if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('/sw.js', {scope: '/'}).catch(function(){});
+        navigator.serviceWorker.register('/sw.js', {scope: '/'}).then(function(reg) {
+            {% if current_user.is_authenticated %}
+            // Request push permission and subscribe after a short delay
+            setTimeout(function() { _gbRegisterPush(reg); }, 2000);
+            {% endif %}
+        }).catch(function(){});
+    }
+
+    function _gbRegisterPush(reg) {
+        if (!('PushManager' in window)) return;
+        if (Notification.permission === 'denied') return;
+        fetch('/social/api/vapid-public-key').then(function(r){ return r.json(); }).then(function(data) {
+            if (!data.publicKey) return;
+            var appKey = _gbUrlBase64ToUint8Array(data.publicKey);
+            reg.pushManager.getSubscription().then(function(existing) {
+                if (existing) return existing;
+                return Notification.requestPermission().then(function(perm) {
+                    if (perm !== 'granted') return null;
+                    return reg.pushManager.subscribe({userVisibleOnly: true, applicationServerKey: appKey});
+                });
+            }).then(function(sub) {
+                if (!sub) return;
+                var k = sub.getKey('p256dh');
+                var a = sub.getKey('auth');
+                fetch('/social/api/push/subscribe', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        endpoint: sub.endpoint,
+                        p256dh: k ? btoa(String.fromCharCode.apply(null, new Uint8Array(k))) : '',
+                        auth: a ? btoa(String.fromCharCode.apply(null, new Uint8Array(a))) : ''
+                    })
+                }).catch(function(){});
+            });
+        }).catch(function(){});
+    }
+
+    function _gbUrlBase64ToUint8Array(base64String) {
+        var padding = '='.repeat((4 - base64String.length % 4) % 4);
+        var base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+        var raw = window.atob(base64);
+        var output = new Uint8Array(raw.length);
+        for (var i = 0; i < raw.length; ++i) { output[i] = raw.charCodeAt(i); }
+        return output;
     }
     // Capture the install prompt for Android — only fires on eligible devices
     var _gbInstallPrompt = null;
@@ -538,6 +615,41 @@
             }
         } catch(e) {}
     })();
+    </script>
+    <script>
+    /**
+     * Compress an image file using canvas.
+     * Returns a Promise that resolves to a compressed File object.
+     * @param {File} file - original image file
+     * @param {number} maxDim - max width or height in px (default 1200)
+     * @param {number} quality - JPEG quality 0-1 (default 0.75)
+     */
+    function compressImage(file, maxDim, quality) {
+        maxDim = maxDim || 1200;
+        quality = quality || 0.75;
+        return new Promise(function(resolve) {
+            // If already small enough, return as-is
+            if (file.size < 500 * 1024) { resolve(file); return; }
+            var img = new Image();
+            img.onload = function() {
+                var w = img.width, h = img.height;
+                if (w > maxDim || h > maxDim) {
+                    if (w > h) { h = Math.round(h * maxDim / w); w = maxDim; }
+                    else { w = Math.round(w * maxDim / h); h = maxDim; }
+                }
+                var canvas = document.createElement('canvas');
+                canvas.width = w; canvas.height = h;
+                canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+                canvas.toBlob(function(blob) {
+                    if (!blob) { resolve(file); return; }
+                    var compressed = new File([blob], file.name.replace(/\.\w+$/, '.jpg'), { type: 'image/jpeg' });
+                    resolve(compressed);
+                }, 'image/jpeg', quality);
+            };
+            img.onerror = function() { resolve(file); };
+            img.src = URL.createObjectURL(file);
+        });
+    }
     </script>
     {% block scripts %}{% endblock %}
 </body>

@@ -72,15 +72,6 @@
     <div id="panel-commonMeal" class="add-panel" style="display:none;">
         <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Select a saved common meal to add all its items at once.</p>
         {% if common_meals %}
-        <div class="form-group" style="margin-bottom: 0.75rem;">
-            <label>Meal Type</label>
-            <select id="commonMealType">
-                <option value="breakfast">Breakfast</option>
-                <option value="lunch">Lunch</option>
-                <option value="dinner">Dinner</option>
-                <option value="snack">Snack</option>
-            </select>
-        </div>
         <div class="common-meal-list">
             {% for cm in common_meals %}
             <div class="common-meal-option" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem;">
@@ -91,7 +82,7 @@
                         {% for item in cm.items[:3] %}{{ item.food_name }}{% if not loop.last %}, {% endif %}{% endfor %}{% if cm.items | length > 3 %}...{% endif %}
                     </div>
                 </div>
-                <button type="button" class="btn btn-primary btn-sm" onclick="addCommonMeal({{ cm.id }})">Add</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="promptMealType({{ cm.id }})">Add</button>
                 <button type="button" class="btn btn-danger btn-sm" onclick="deleteCommonMeal({{ cm.id }})" title="Delete">X</button>
             </div>
             {% endfor %}
@@ -99,6 +90,20 @@
         {% else %}
         <p style="color: var(--text-muted);">No common meals saved yet. You can save a common meal from any meal section below.</p>
         {% endif %}
+    </div>
+
+    <!-- Meal Type Picker Modal -->
+    <div id="mealTypeModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
+        <div style="background:var(--card-bg); border:1px solid var(--border); border-radius:var(--radius); padding:1.25rem; width:90%; max-width:320px; text-align:center;">
+            <p style="margin-bottom:1rem; font-weight:600;">Add to which meal?</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.5rem;">
+                <button type="button" class="btn btn-primary" onclick="confirmMealType('breakfast')">Breakfast</button>
+                <button type="button" class="btn btn-primary" onclick="confirmMealType('lunch')">Lunch</button>
+                <button type="button" class="btn btn-primary" onclick="confirmMealType('dinner')">Dinner</button>
+                <button type="button" class="btn btn-primary" onclick="confirmMealType('snack')">Snack</button>
+            </div>
+            <button type="button" class="btn" style="margin-top:0.75rem; width:100%;" onclick="closeMealTypeModal()">Cancel</button>
+        </div>
     </div>
 
     <!-- Common Food Item Panel -->
@@ -609,8 +614,23 @@ function saveAsCommonMeal(mealType, entryIds) {
     });
 }
 
-function addCommonMeal(mealId) {
-    const mealType = document.getElementById('commonMealType').value;
+var _pendingCommonMealId = null;
+
+function promptMealType(mealId) {
+    _pendingCommonMealId = mealId;
+    var modal = document.getElementById('mealTypeModal');
+    modal.style.display = 'flex';
+}
+
+function closeMealTypeModal() {
+    document.getElementById('mealTypeModal').style.display = 'none';
+    _pendingCommonMealId = null;
+}
+
+function confirmMealType(mealType) {
+    if (!_pendingCommonMealId) return;
+    var mealId = _pendingCommonMealId;
+    closeMealTypeModal();
     fetch('{{ url_for("food.add_common_meal") }}', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -823,14 +843,16 @@ document.getElementById('foodFileInput').addEventListener('change', function() {
 });
 
 function handleFoodPhotoSelect(file) {
-    foodPhotoFile = file;
-    var reader = new FileReader();
-    reader.onload = function(e) {
-        document.getElementById('foodPhotoPreviewImg').src = e.target.result;
-        document.getElementById('foodPhotoPreview').style.display = 'block';
-        document.getElementById('foodPhotoResults').style.display = 'none';
-    };
-    reader.readAsDataURL(file);
+    compressImage(file, 1200, 0.7).then(function(compressed) {
+        foodPhotoFile = compressed;
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('foodPhotoPreviewImg').src = e.target.result;
+            document.getElementById('foodPhotoPreview').style.display = 'block';
+            document.getElementById('foodPhotoResults').style.display = 'none';
+        };
+        reader.readAsDataURL(compressed);
+    });
 }
 
 function analyzeFood() {

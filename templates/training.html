@@ -10,6 +10,7 @@
         <div style="display: flex; gap: 0.25rem; flex-wrap: wrap;">
             <a href="{{ url_for('ai.chat_page') }}" class="btn btn-sm btn-primary no-print">Edit with AI</a>
             <button type="button" class="btn btn-sm btn-success no-print" onclick="window.print()">Print Plan</button>
+            <button type="button" class="btn btn-sm no-print" style="background:var(--accent); color:#fff;" onclick="showSharePlanModal('{{ plan_name | e }}')">Share Plan</button>
             <form method="POST" action="{{ url_for('training.delete_plan') }}" style="display:inline;" class="no-print">
                 <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Remove this plan?')">Remove Plan</button>
             </form>
@@ -286,6 +287,66 @@ function lookupExercise(name) {
                 window.open(data.url, '_blank');
             }
         });
+}
+
+// ── share plan modal ──
+function showSharePlanModal(planName) {
+    var existing = document.getElementById('sharePlanModal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'sharePlanModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML =
+        '<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;max-width:420px;width:100%;">' +
+            '<h3 style="margin-bottom:0.75rem;">Share Plan: ' + planName + '</h3>' +
+            '<div class="form-group" style="margin-bottom:0.6rem;">' +
+                '<label>Send to Friend</label>' +
+                '<select id="spRecipient"><option value="">Loading friends…</option></select>' +
+            '</div>' +
+            '<div class="form-group" style="margin-bottom:0.75rem;">' +
+                '<label>Message (optional)</label>' +
+                '<input type="text" id="spMessage" placeholder="Check out my plan!" maxlength="500">' +
+            '</div>' +
+            '<div style="display:flex;gap:0.5rem;">' +
+                '<button class="btn btn-primary" onclick="sendPlanShare(\'' + planName.replace(/'/g,"\\'") + '\')">Send</button>' +
+                '<button class="btn" style="background:var(--border);" onclick="document.getElementById(\'sharePlanModal\').remove()">Cancel</button>' +
+            '</div>' +
+            '<div id="spStatus" style="margin-top:0.5rem;"></div>' +
+        '</div>';
+    document.body.appendChild(modal);
+    // Load friends into select
+    fetch('{{ url_for("social.search_users") }}?q=').then(r=>r.json()).catch(()=>[]);
+    // Use a dedicated friends list endpoint — fall back to empty for now
+    // Populate via search trick: get all by fetching friends from social page data
+    loadFriendsIntoSelect('spRecipient');
+}
+
+function loadFriendsIntoSelect(selectId) {
+    // Hit search with empty string won't return friends — instead load from API
+    fetch('/social/api/friends').then(r=>r.json()).then(function(friends) {
+        var sel = document.getElementById(selectId);
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— select friend —</option>' +
+            friends.map(f=>'<option value="'+f.id+'">'+f.display_name+' (@'+f.username+')</option>').join('');
+    }).catch(function() {
+        var sel = document.getElementById(selectId);
+        if (sel) sel.innerHTML = '<option value="">No friends yet</option>';
+    });
+}
+
+function sendPlanShare(planName) {
+    var recipientId = parseInt(document.getElementById('spRecipient').value);
+    var message = document.getElementById('spMessage').value.trim();
+    var status = document.getElementById('spStatus');
+    if (!recipientId) { alert('Select a friend to send to.'); return; }
+    fetch('{{ url_for("social.share_item") }}', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]').content},
+        body:JSON.stringify({recipient_id:recipientId, item_type:'workout_plan', plan_name:planName, message:message})
+    }).then(r=>r.json()).then(function(d) {
+        if (d.ok) { status.innerHTML='<span style="color:var(--accent);">Sent!</span>'; setTimeout(()=>document.getElementById('sharePlanModal').remove(), 1200); }
+        else status.innerHTML='<span style="color:var(--danger);">'+(d.error||'Error')+'</span>';
+    });
 }
 </script>
 {% endblock %}

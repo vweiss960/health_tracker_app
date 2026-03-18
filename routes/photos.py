@@ -40,10 +40,24 @@ def upload_photo():
     user_dir = os.path.join(UPLOAD_DIR, str(current_user.id))
     os.makedirs(user_dir, exist_ok=True)
 
-    # Generate unique filename
-    ext = file.filename.rsplit('.', 1)[1].lower()
-    filename = f"{uuid.uuid4().hex}.{ext}"
-    file.save(os.path.join(user_dir, filename))
+    # Compress and save as JPEG to limit storage
+    from PIL import Image
+    import io
+    filename = f"{uuid.uuid4().hex}.jpg"
+    filepath = os.path.join(user_dir, filename)
+    try:
+        img = Image.open(file)
+        img.thumbnail((1600, 1600), Image.LANCZOS)
+        if img.mode in ('RGBA', 'P'):
+            img = img.convert('RGB')
+        img.save(filepath, 'JPEG', quality=80, optimize=True)
+    except Exception:
+        # Fallback: save original if Pillow fails
+        file.seek(0)
+        ext = file.filename.rsplit('.', 1)[1].lower()
+        filename = f"{uuid.uuid4().hex}.{ext}"
+        filepath = os.path.join(user_dir, filename)
+        file.save(filepath)
 
     date_str = request.form.get('date')
     photo_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else datetime.utcnow().date()

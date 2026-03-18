@@ -116,6 +116,7 @@ from routes.resources import resources_bp
 from routes.meal_plan import meal_plan_bp
 from routes.motivation import motivation_bp
 from routes.admin import admin_bp
+from routes.social import social_bp
 
 app.register_blueprint(auth_bp)
 # Rate-limit auth endpoints
@@ -131,6 +132,34 @@ app.register_blueprint(resources_bp, url_prefix='/resources')
 app.register_blueprint(meal_plan_bp, url_prefix='/meal-plan')
 app.register_blueprint(motivation_bp, url_prefix='/motivation')
 app.register_blueprint(admin_bp, url_prefix='/admin')
+app.register_blueprint(social_bp, url_prefix='/social')
+
+
+# ── Jinja2 custom filters ──────────────────────────────────────────────────────
+import json as _json
+
+@app.context_processor
+def inject_social_counts():
+    """Inject pending friend request count into every template for the nav badge."""
+    from flask_login import current_user
+    count = 0
+    if current_user.is_authenticated:
+        try:
+            from models import Friendship
+            count = Friendship.query.filter_by(
+                recipient_id=current_user.id, status='pending'
+            ).count()
+        except Exception:
+            pass
+    return {'pending_friend_requests': count}
+
+
+@app.template_filter('fromjson')
+def fromjson_filter(s):
+    try:
+        return _json.loads(s)
+    except Exception:
+        return {}
 
 
 @app.route('/')

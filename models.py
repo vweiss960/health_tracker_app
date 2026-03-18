@@ -318,6 +318,77 @@ class BarcodeCache(db.Model):
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class PushSubscription(db.Model):
+    """Web Push subscription endpoint per user/device."""
+    __tablename__ = 'push_subscriptions'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    endpoint = db.Column(db.Text, nullable=False)
+    p256dh = db.Column(db.Text, nullable=False)
+    auth = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user = db.relationship('User', foreign_keys=[user_id], lazy=True)
+    __table_args__ = (db.UniqueConstraint('user_id', 'endpoint', name='unique_push_sub'),)
+
+
+class Friendship(db.Model):
+    """Friend relationships between users. Sender sends request; recipient accepts."""
+    __tablename__ = 'friendships'
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, accepted, declined
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    updated_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    sender = db.relationship('User', foreign_keys=[sender_id], lazy=True)
+    recipient = db.relationship('User', foreign_keys=[recipient_id], lazy=True)
+    __table_args__ = (db.UniqueConstraint('sender_id', 'recipient_id', name='unique_friendship'),)
+
+
+class Challenge(db.Model):
+    """Time-boxed challenges that friends can join and compete in."""
+    __tablename__ = 'challenges'
+    id = db.Column(db.Integer, primary_key=True)
+    creator_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    description = db.Column(db.Text)
+    challenge_type = db.Column(db.String(30), nullable=False)  # workouts_logged, calories_burned, streak_days
+    target_value = db.Column(db.Float, nullable=False)
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    is_public = db.Column(db.Boolean, default=False)  # visible to all users vs friends-only
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    creator = db.relationship('User', foreign_keys=[creator_id], lazy=True)
+    participants = db.relationship('ChallengeParticipant', backref='challenge', lazy=True, cascade='all, delete-orphan')
+
+
+class ChallengeParticipant(db.Model):
+    """Tracks each user's progress in a challenge."""
+    __tablename__ = 'challenge_participants'
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(db.Integer, db.ForeignKey('challenges.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    current_value = db.Column(db.Float, default=0)
+    joined_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    user = db.relationship('User', foreign_keys=[user_id], lazy=True)
+    __table_args__ = (db.UniqueConstraint('challenge_id', 'user_id', name='unique_participant'),)
+
+
+class SharedItem(db.Model):
+    """Shared workout plans, playlists, or motivation links sent between friends."""
+    __tablename__ = 'shared_items'
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    recipient_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    item_type = db.Column(db.String(30), nullable=False)  # workout_plan, playlist, motivation_link
+    item_data = db.Column(db.Text, nullable=False)  # JSON blob
+    message = db.Column(db.String(500))
+    seen = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    sender = db.relationship('User', foreign_keys=[sender_id], lazy=True)
+    recipient = db.relationship('User', foreign_keys=[recipient_id], lazy=True)
+
+
 class TrainingEntry(db.Model):
     __tablename__ = 'training_entries'
     id = db.Column(db.Integer, primary_key=True)

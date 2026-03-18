@@ -1,0 +1,396 @@
+{% extends "base.html" %}
+{% block title %}Social – GritBoard{% endblock %}
+
+{% block content %}
+<style>
+.social-tabs { display:flex; gap:0.5rem; margin-bottom:1.25rem; flex-wrap:wrap; }
+.social-tab { padding:0.45rem 1rem; border-radius:var(--radius); border:1px solid var(--border);
+              background:var(--surface); cursor:pointer; font-size:0.9rem; color:var(--text); }
+.social-tab.active { background:var(--accent); color:#fff; border-color:var(--accent); }
+.social-section { display:none; }
+.social-section.active { display:block; }
+
+.friend-card { display:flex; align-items:center; justify-content:space-between;
+               padding:0.65rem 0.75rem; border:1px solid var(--border); border-radius:var(--radius);
+               background:var(--surface); margin-bottom:0.5rem; gap:0.5rem; flex-wrap:wrap; }
+.friend-name { font-weight:600; font-size:0.95rem; }
+.friend-user { font-size:0.8rem; color:var(--text-muted); }
+
+.challenge-card { padding:0.75rem; border:1px solid var(--border); border-radius:var(--radius);
+                  background:var(--surface); margin-bottom:0.6rem; }
+.challenge-title { font-weight:700; font-size:1rem; margin-bottom:0.25rem; }
+.challenge-meta { font-size:0.8rem; color:var(--text-muted); margin-bottom:0.4rem; }
+.progress-bar-wrap { background:var(--border); border-radius:4px; height:8px; overflow:hidden; margin:0.3rem 0; }
+.progress-bar-fill { background:var(--accent); height:8px; border-radius:4px; transition:width 0.3s; }
+
+.inbox-card { padding:0.65rem 0.75rem; border:1px solid var(--border); border-radius:var(--radius);
+              background:var(--surface); margin-bottom:0.5rem; }
+.inbox-card.unread { border-left:3px solid var(--accent); }
+.inbox-type { font-size:0.72rem; text-transform:uppercase; letter-spacing:.05em;
+              color:var(--accent); font-weight:700; margin-bottom:0.2rem; }
+.inbox-sender { font-size:0.82rem; color:var(--text-muted); }
+.inbox-msg { font-size:0.88rem; margin:0.2rem 0 0.4rem; }
+.inbox-actions { display:flex; gap:0.4rem; flex-wrap:wrap; }
+
+.user-search-result { display:flex; align-items:center; justify-content:space-between;
+                       padding:0.5rem 0.6rem; border:1px solid var(--border); border-radius:var(--radius);
+                       background:var(--surface); margin-bottom:0.4rem; gap:0.5rem; flex-wrap:wrap; }
+</style>
+
+<h2 style="margin-bottom:0.75rem;">Social
+  {% if unread_count %}<span style="font-size:0.75rem; background:var(--accent); color:#fff; border-radius:12px; padding:0.1rem 0.5rem; margin-left:0.4rem;">{{ unread_count }} new</span>{% endif %}
+</h2>
+
+<div class="social-tabs">
+  <button class="social-tab active" onclick="showTab('friends')">Friends ({{ friends|length }})</button>
+  <button class="social-tab" onclick="showTab('challenges')">Challenges</button>
+  <button class="social-tab" onclick="showTab('inbox')">Inbox {% if unread_count %}({{ unread_count }}){% endif %}</button>
+  <button class="social-tab" onclick="showTab('share')">Share</button>
+</div>
+
+<!-- ── FRIENDS ── -->
+<div id="tab-friends" class="social-section active">
+  <h3 style="margin-bottom:0.6rem;">Find People</h3>
+  <div style="display:flex; gap:0.4rem; margin-bottom:0.75rem;">
+    <input type="text" id="userSearchInput" placeholder="Search by username…"
+           style="flex:1; min-width:0; padding:0.65rem 0.85rem; font-size:1rem;"
+           oninput="searchUsers(this.value)">
+  </div>
+  <div id="userSearchResults"></div>
+
+  {% if pending_received %}
+  <h3 style="margin-bottom:0.5rem;">Pending Requests ({{ pending_received|length }})</h3>
+  {% for fs in pending_received %}
+  <div class="friend-card" id="fs-{{ fs.id }}">
+    <div>
+      <div class="friend-name">{{ fs.sender.display_name or fs.sender.username }}</div>
+      <div class="friend-user">@{{ fs.sender.username }}</div>
+    </div>
+    <div style="display:flex; gap:0.4rem;">
+      <button class="btn btn-primary btn-sm" onclick="respondRequest({{ fs.id }}, 'accept')">Accept</button>
+      <button class="btn btn-sm" style="background:var(--border);" onclick="respondRequest({{ fs.id }}, 'decline')">Decline</button>
+    </div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <h3 style="margin:0.75rem 0 0.5rem;">Your Friends ({{ friends|length }})</h3>
+  {% if friends %}
+    {% for f in friends %}
+    <div class="friend-card">
+      <div>
+        <div class="friend-name">{{ f.display_name or f.username }}</div>
+        <div class="friend-user">@{{ f.username }}</div>
+      </div>
+      <button class="btn btn-sm" style="background:var(--border); color:var(--danger);"
+              onclick="if(confirm('Remove friend?')) removeFriend({{ f.id }}, this)">Remove</button>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p style="color:var(--text-muted);">No friends yet — search above to add people.</p>
+  {% endif %}
+</div>
+
+<!-- ── CHALLENGES ── -->
+<div id="tab-challenges" class="social-section">
+  <button class="btn btn-primary" onclick="toggleCreateChallenge()" style="margin-bottom:0.75rem;">+ Create Challenge</button>
+
+  <div id="createChallengeForm" style="display:none; border:1px solid var(--border); border-radius:var(--radius); padding:0.85rem; margin-bottom:1rem; background:var(--surface);">
+    <h3 style="margin-bottom:0.6rem;">New Challenge</h3>
+    <div class="form-grid">
+      <div class="form-group"><label>Title</label><input type="text" id="cTitle" placeholder="e.g. 30-Day Grind"></div>
+      <div class="form-group">
+        <label>Type</label>
+        <select id="cType">
+          <option value="workouts_logged">Workouts Logged</option>
+          <option value="calories_burned">Calories Burned</option>
+          <option value="streak_days">Active Days</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Target</label><input type="number" id="cTarget" placeholder="e.g. 20" min="1"></div>
+      <div class="form-group"><label>Start Date</label><input type="date" id="cStart"></div>
+      <div class="form-group"><label>End Date</label><input type="date" id="cEnd"></div>
+    </div>
+    <div class="form-group"><label>Description (optional)</label><textarea id="cDesc" rows="2"></textarea></div>
+    <label style="display:flex; align-items:center; gap:0.5rem; margin-bottom:0.6rem; cursor:pointer;">
+      <input type="checkbox" id="cPublic"> Make public (anyone can join)
+    </label>
+    <button class="btn btn-primary" onclick="createChallenge()">Create</button>
+  </div>
+
+  {% if my_challenges %}
+  <h3 style="margin-bottom:0.5rem;">Your Active Challenges</h3>
+  {% for p in my_challenges %}
+  {% set c = p.challenge %}
+  {% if c.end_date >= today %}
+  <div class="challenge-card">
+    <div class="challenge-title">{{ c.title }}</div>
+    <div class="challenge-meta">{{ c.challenge_type.replace('_',' ').title() }} · Target: {{ c.target_value|int }} · Ends {{ c.end_date.strftime('%b %d') }}</div>
+    <div class="progress-bar-wrap">
+      <div class="progress-bar-fill" style="width:{{ [[(p.current_value / c.target_value * 100)|int, 0]|max, 100]|min }}%;"></div>
+    </div>
+    <div style="font-size:0.82rem; color:var(--text-muted);">{{ p.current_value|int }} / {{ c.target_value|int }}</div>
+    <div style="margin-top:0.5rem; display:flex; gap:0.5rem;">
+      <a href="{{ url_for('social.challenge_detail', cid=c.id) }}" class="btn btn-sm btn-primary">Leaderboard</a>
+      <button class="btn btn-sm" style="background:var(--border);" onclick="leaveChallenge({{ c.id }}, this)">Leave</button>
+    </div>
+  </div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
+
+  {% if open_challenges or friend_challenges %}
+  <h3 style="margin:0.75rem 0 0.5rem;">Open Challenges</h3>
+  {% for c in (open_challenges + friend_challenges) %}
+  <div class="challenge-card">
+    <div class="challenge-title">{{ c.title }}</div>
+    <div class="challenge-meta">{{ c.challenge_type.replace('_',' ').title() }} · Target: {{ c.target_value|int }} · {{ c.start_date.strftime('%b %d') }}–{{ c.end_date.strftime('%b %d') }}
+      {% if c.is_public %}<span style="background:var(--accent); color:#fff; border-radius:10px; padding:0.05rem 0.4rem; font-size:0.7rem;">Public</span>{% endif %}
+    </div>
+    {% if c.description %}<div style="font-size:0.85rem; margin-bottom:0.3rem;">{{ c.description }}</div>{% endif %}
+    <button class="btn btn-sm btn-primary" onclick="joinChallenge({{ c.id }}, this)">Join</button>
+  </div>
+  {% endfor %}
+  {% else %}
+  <p style="color:var(--text-muted); margin-top:0.5rem;">No open challenges right now.</p>
+  {% endif %}
+</div>
+
+<!-- ── INBOX ── -->
+<div id="tab-inbox" class="social-section">
+  {% if inbox %}
+    {% for item in inbox %}
+    <div class="inbox-card {{ 'unread' if not item.seen }}" id="inbox-{{ item.id }}">
+      <div class="inbox-type">{{ item.item_type.replace('_',' ') }}</div>
+      <div class="inbox-sender">From <strong>{{ item.sender.display_name or item.sender.username }}</strong> · {{ item.created_at.strftime('%b %d') }}</div>
+      {% if item.message %}<div class="inbox-msg">{{ item.message }}</div>{% endif %}
+      {% set payload = item.item_data | tojson | safe %}
+      <div class="inbox-actions">
+        {% if item.item_type == 'workout_plan' %}
+          {% set d = item.item_data | fromjson %}
+          <span style="font-size:0.85rem; color:var(--text-muted);">Plan: <em>{{ d.plan_name }}</em> ({{ d.exercises|length }} exercises)</span>
+          <button class="btn btn-sm btn-primary" onclick="acceptWorkout({{ item.id }}, this)">Add to My Plans</button>
+        {% elif item.item_type == 'playlist' %}
+          {% set d = item.item_data | fromjson %}
+          <span style="font-size:0.85rem; color:var(--text-muted);">{{ d.title }}</span>
+          <button class="btn btn-sm btn-primary" onclick="savePlaylist({{ item.id }}, this)">Save Playlist</button>
+        {% elif item.item_type == 'motivation_link' %}
+          {% set d = item.item_data | fromjson %}
+          <a href="{{ d.url }}" target="_blank" rel="noopener" class="btn btn-sm btn-primary" onclick="markSeen({{ item.id }})">Open Link</a>
+          {% if d.title %}<span style="font-size:0.85rem; color:var(--text-muted);">{{ d.title }}</span>{% endif %}
+          {% if d.notes %}<div style="font-size:0.82rem; color:var(--text-muted);">{{ d.notes }}</div>{% endif %}
+        {% endif %}
+        {% if not item.seen %}
+        <button class="btn btn-sm" style="background:var(--border);" onclick="markSeen({{ item.id }}, this)">Mark Read</button>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  {% else %}
+    <p style="color:var(--text-muted);">Your inbox is empty.</p>
+  {% endif %}
+</div>
+
+<!-- ── SHARE ── -->
+<div id="tab-share" class="social-section">
+  <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:0.75rem;">
+    Share buttons also appear on the Training, Music, and Motivation pages. Use this panel to share directly.
+  </p>
+  <div class="form-group" style="margin-bottom:0.6rem;">
+    <label>Send to Friend</label>
+    <select id="shareRecipient">
+      <option value="">— select friend —</option>
+      {% for f in friends %}
+      <option value="{{ f.id }}">{{ f.display_name or f.username }} (@{{ f.username }})</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="form-group" style="margin-bottom:0.6rem;">
+    <label>What to Share</label>
+    <select id="shareType" onchange="updateShareForm()">
+      <option value="">— select type —</option>
+      <option value="workout_plan">Workout Plan</option>
+      <option value="motivation_link">Motivation Link</option>
+    </select>
+  </div>
+
+  <div id="shareWorkoutForm" style="display:none;">
+    <div class="form-group"><label>Plan Name (exact)</label><input type="text" id="sharePlanName" placeholder="e.g. Push Pull Legs"></div>
+  </div>
+
+  <div id="shareLinkForm" style="display:none;">
+    <div class="form-group"><label>URL</label><input type="url" id="shareLinkUrl" placeholder="https://…"></div>
+    <div class="form-group"><label>Title</label><input type="text" id="shareLinkTitle" placeholder="Optional title"></div>
+    <div class="form-group"><label>Notes</label><textarea id="shareLinkNotes" rows="2" placeholder="Optional note…"></textarea></div>
+  </div>
+
+  <div class="form-group" style="margin-bottom:0.75rem;">
+    <label>Message (optional)</label>
+    <input type="text" id="shareMessage" placeholder="Add a message…" maxlength="500">
+  </div>
+  <button class="btn btn-primary" onclick="sendShare()">Send</button>
+  <div id="shareStatus" style="margin-top:0.5rem;"></div>
+</div>
+
+<script>
+function showTab(name) {
+    document.querySelectorAll('.social-tab').forEach((t,i)=>t.classList.toggle('active', ['friends','challenges','inbox','share'][i]===name));
+    document.querySelectorAll('.social-section').forEach(s=>s.classList.remove('active'));
+    document.getElementById('tab-'+name).classList.add('active');
+}
+
+// ── friend search ──
+var _searchTimer;
+function searchUsers(q) {
+    clearTimeout(_searchTimer);
+    if (!q.trim()) { document.getElementById('userSearchResults').innerHTML=''; return; }
+    _searchTimer = setTimeout(function() {
+        fetch('{{ url_for("social.search_users") }}?q=' + encodeURIComponent(q))
+        .then(r=>r.json())
+        .then(function(users) {
+            var el = document.getElementById('userSearchResults');
+            if (!users.length) { el.innerHTML='<p style="color:var(--text-muted); font-size:0.85rem;">No users found.</p>'; return; }
+            el.innerHTML = users.map(function(u) {
+                var btn = '';
+                if (!u.friendship_status) {
+                    btn = '<button class="btn btn-sm btn-primary" onclick="addFriend('+u.id+', this)">Add Friend</button>';
+                } else if (u.friendship_status==='pending' && u.is_sender) {
+                    btn = '<span style="font-size:0.8rem; color:var(--text-muted);">Request Sent</span>';
+                } else if (u.friendship_status==='pending') {
+                    btn = '<span style="font-size:0.8rem; color:var(--accent);">Sent you a request</span>';
+                } else if (u.friendship_status==='accepted') {
+                    btn = '<span style="font-size:0.8rem; color:var(--text-muted);">Friends ✓</span>';
+                }
+                return '<div class="user-search-result"><div><strong>'+escHtml(u.display_name)+'</strong> <span style="font-size:0.8rem; color:var(--text-muted);">@'+escHtml(u.username)+'</span></div>'+btn+'</div>';
+            }).join('');
+        });
+    }, 300);
+}
+
+function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function apiFetch(url, body) {
+    return fetch(url, {method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken': document.querySelector('meta[name="csrf-token"]').content}, body:JSON.stringify(body)}).then(r=>r.json());
+}
+
+function addFriend(uid, btn) {
+    btn.disabled=true; btn.textContent='Sending…';
+    apiFetch('{{ url_for("social.send_friend_request") }}', {user_id:uid}).then(function(d) {
+        if (d.ok) btn.textContent='Request Sent';
+        else { btn.disabled=false; btn.textContent='Add Friend'; alert(d.error||'Error'); }
+    });
+}
+
+function respondRequest(fsId, action) {
+    apiFetch('{{ url_for("social.respond_friend_request") }}', {friendship_id:fsId, action:action}).then(function(d) {
+        if (d.ok) { var el=document.getElementById('fs-'+fsId); if(el) el.remove(); location.reload(); }
+    });
+}
+
+function removeFriend(uid, btn) {
+    btn.disabled=true;
+    apiFetch('{{ url_for("social.remove_friend") }}', {user_id:uid}).then(function(d) {
+        if (d.ok) location.reload();
+        else btn.disabled=false;
+    });
+}
+
+// ── challenges ──
+function toggleCreateChallenge() {
+    var f=document.getElementById('createChallengeForm');
+    f.style.display = f.style.display==='none' ? 'block' : 'none';
+}
+
+function createChallenge() {
+    var body = {
+        title: document.getElementById('cTitle').value.trim(),
+        challenge_type: document.getElementById('cType').value,
+        target_value: document.getElementById('cTarget').value,
+        start_date: document.getElementById('cStart').value,
+        end_date: document.getElementById('cEnd').value,
+        description: document.getElementById('cDesc').value.trim(),
+        is_public: document.getElementById('cPublic').checked
+    };
+    if (!body.title || !body.start_date || !body.end_date) { alert('Fill in title, start, and end date.'); return; }
+    apiFetch('{{ url_for("social.create_challenge") }}', body).then(function(d) {
+        if (d.ok) location.reload();
+        else alert(d.error || 'Error creating challenge');
+    });
+}
+
+function joinChallenge(cid, btn) {
+    btn.disabled=true; btn.textContent='Joining…';
+    apiFetch('/social/challenge/'+cid+'/join', {}).then(function(d) {
+        if (d.ok) location.reload();
+        else { btn.disabled=false; btn.textContent='Join'; alert(d.error||'Error'); }
+    });
+}
+
+function leaveChallenge(cid, btn) {
+    if (!confirm('Leave this challenge?')) return;
+    btn.disabled=true;
+    apiFetch('/social/challenge/'+cid+'/leave', {}).then(function(d) {
+        if (d.ok) location.reload();
+        else btn.disabled=false;
+    });
+}
+
+// ── inbox ──
+function markSeen(itemId, btn) {
+    apiFetch('{{ url_for("social.mark_seen") }}', {item_id:itemId}).then(function() {
+        var card = document.getElementById('inbox-'+itemId);
+        if (card) { card.classList.remove('unread'); if(btn){btn.remove();} }
+    });
+}
+
+function acceptWorkout(itemId, btn) {
+    btn.disabled=true; btn.textContent='Adding…';
+    apiFetch('{{ url_for("social.accept_workout") }}', {item_id:itemId}).then(function(d) {
+        if (d.ok) { btn.textContent='Added ✓'; markSeen(itemId); alert('Plan "'+d.plan_name+'" added to your Training Plans!'); }
+        else { btn.disabled=false; btn.textContent='Add to My Plans'; alert(d.error||'Error'); }
+    });
+}
+
+function savePlaylist(itemId, btn) {
+    btn.disabled=true; btn.textContent='Saving…';
+    apiFetch('{{ url_for("social.save_shared_playlist") }}', {item_id:itemId}).then(function(d) {
+        if (d.ok) { btn.textContent='Saved ✓'; markSeen(itemId); }
+        else { btn.disabled=false; btn.textContent='Save Playlist'; alert(d.error||'Error'); }
+    });
+}
+
+// ── share panel ──
+function updateShareForm() {
+    var t=document.getElementById('shareType').value;
+    document.getElementById('shareWorkoutForm').style.display = t==='workout_plan' ? 'block' : 'none';
+    document.getElementById('shareLinkForm').style.display = t==='motivation_link' ? 'block' : 'none';
+}
+
+function sendShare() {
+    var recipientId = parseInt(document.getElementById('shareRecipient').value);
+    var type = document.getElementById('shareType').value;
+    var message = document.getElementById('shareMessage').value.trim();
+    var status = document.getElementById('shareStatus');
+
+    if (!recipientId) { alert('Select a friend to send to.'); return; }
+    if (!type) { alert('Select what to share.'); return; }
+
+    var body = {recipient_id: recipientId, item_type: type, message: message};
+
+    if (type === 'workout_plan') {
+        body.plan_name = document.getElementById('sharePlanName').value.trim();
+        if (!body.plan_name) { alert('Enter a plan name.'); return; }
+    } else if (type === 'motivation_link') {
+        body.url = document.getElementById('shareLinkUrl').value.trim();
+        body.title = document.getElementById('shareLinkTitle').value.trim();
+        body.notes = document.getElementById('shareLinkNotes').value.trim();
+        if (!body.url) { alert('Enter a URL.'); return; }
+    }
+
+    apiFetch('{{ url_for("social.share_item") }}', body).then(function(d) {
+        if (d.ok) { status.innerHTML='<span style="color:var(--accent);">Sent!</span>'; }
+        else { status.innerHTML='<span style="color:var(--danger);">'+(d.error||'Error')+'</span>'; }
+    });
+}
+</script>
+{% endblock %}

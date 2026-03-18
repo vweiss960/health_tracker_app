@@ -6,14 +6,52 @@
     --warning: #f59e0b;
     --bg: #121212;
     --card: #1e1e1e;
+    --surface: #2a2a2a;
     --text: #e0e0e0;
     --text-muted: #888888;
-    --border: #2a2a2a;
+    --border: #3a3a3a;
     --radius: 6px;
     --accent: #e63946;
+    color-scheme: dark;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* ── Global form element theme ─────────────────────────────────────────────── */
+/* color-scheme:dark on :root tells browsers to use dark defaults for inputs,
+   then we override explicitly so nothing shows a white background. */
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]),
+textarea,
+select {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: var(--surface) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.65rem;
+    font-size: 0.95rem;
+    font-family: inherit;
+}
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="submit"]):not([type="button"]):focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(230,57,70,0.15);
+}
+/* Re-add dropdown arrow for selects since appearance:none removes it */
+select {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23888' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.65rem center !important;
+    background-size: 12px !important;
+    padding-right: 2rem;
+}
+::placeholder { color: #666; opacity: 1; }
+input[type="range"] { -webkit-appearance: auto; appearance: auto; background: transparent; border: none; padding: 0; width: 100%; }
+input[type="file"] { -webkit-appearance: none; background: var(--surface) !important; color: var(--text); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.4rem 0.5rem; }
 
 body {
     font-family: 'Segoe UI', Roboto, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -146,17 +184,7 @@ body {
     letter-spacing: 0.5px;
 }
 .form-group input, .form-group select, .form-group textarea {
-    padding: 0.5rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 0.95rem;
-    background: #161616;
-    color: var(--text);
-}
-.form-group input:focus, .form-group select:focus, .form-group textarea:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(230,57,70,0.15);
+    width: 100%;
 }
 .form-full { grid-column: 1 / -1; }
 
@@ -208,18 +236,7 @@ th { font-weight: 700; color: var(--text-muted); font-size: 0.8rem; text-transfo
     border-top: 3px solid var(--accent);
 }
 .auth-container input {
-    width: 100%;
     margin-bottom: 0.75rem;
-    padding: 0.6rem;
-    background: #161616;
-    color: var(--text);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-}
-.auth-container input:focus {
-    outline: none;
-    border-color: var(--accent);
-    box-shadow: 0 0 0 3px rgba(230,57,70,0.15);
 }
 .auth-container .btn { width: 100%; justify-content: center; margin-top: 0.5rem; }
 

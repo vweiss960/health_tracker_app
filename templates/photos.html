@@ -79,20 +79,21 @@ function openCamera() {
     document.getElementById('cameraInput').click();
 }
 
-document.getElementById('cameraInput').addEventListener('change', function() {
-    if (this.files && this.files[0]) {
-        // Copy the camera file to the main file input via DataTransfer
+function compressAndSetFile(file) {
+    compressImage(file, 1600, 0.8).then(function(compressed) {
         var dt = new DataTransfer();
-        dt.items.add(this.files[0]);
+        dt.items.add(compressed);
         document.getElementById('photoFileInput').files = dt.files;
-        showPreview(this.files[0]);
-    }
+        showPreview(compressed);
+    });
+}
+
+document.getElementById('cameraInput').addEventListener('change', function() {
+    if (this.files && this.files[0]) compressAndSetFile(this.files[0]);
 });
 
 document.getElementById('photoFileInput').addEventListener('change', function() {
-    if (this.files && this.files[0]) {
-        showPreview(this.files[0]);
-    }
+    if (this.files && this.files[0]) compressAndSetFile(this.files[0]);
 });
 
 function showPreview(file) {

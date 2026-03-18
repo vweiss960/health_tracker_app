@@ -8,10 +8,9 @@
     <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
         Describe the style, mood, or genre. AI will find the best YouTube playlists and mixes for you.
     </p>
-    <div style="display: flex; gap: 0.5rem;">
-        <input type="text" id="musicPrompt" placeholder="e.g. High energy hip hop for heavy lifting"
-               style="flex: 1; padding: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius); font-size: 0.95rem;">
-        <button type="button" class="btn btn-primary" id="searchBtn" onclick="searchMusic()">Find Music</button>
+    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+        <input type="text" id="musicPrompt" placeholder="e.g. High energy hip hop for heavy lifting" style="width: 100%; padding: 0.85rem 1rem; font-size: 1.05rem;">
+        <button type="button" class="btn btn-primary" id="searchBtn" onclick="searchMusic()" style="width: 100%; padding: 0.75rem; font-size: 1rem;">Find Music</button>
     </div>
     <div style="display: flex; gap: 0.5rem; margin-top: 0.75rem; flex-wrap: wrap;">
         <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="quickSearch('High energy workout music for gym')">Gym Pump</button>
@@ -89,6 +88,7 @@
                 </div>
             </div>
             <div class="music-result-actions">
+                <button type="button" class="btn btn-sm" style="background:var(--accent);color:#fff;" data-spid="{{ sp.id }}" data-sptitle="{{ sp.title | e }}" onclick="event.stopPropagation(); showSharePlaylistModal(this.dataset.spid, this.dataset.sptitle)">Share</button>
                 <button type="button" class="btn btn-sm btn-danger" onclick="event.stopPropagation(); removeSaved({{ sp.id }}, this)">Remove</button>
             </div>
         </div>
@@ -512,5 +512,53 @@ document.getElementById('musicPrompt').addEventListener('keydown', function(e) {
     const mini = document.getElementById('miniPlayer');
     if (mini) { mini.style.display = 'none'; document.body.style.paddingBottom = ''; }
 })();
+
+function showSharePlaylistModal(playlistId, title) {
+    var existing = document.getElementById('sharePlaylistModal');
+    if (existing) existing.remove();
+    var modal = document.createElement('div');
+    modal.id = 'sharePlaylistModal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:1000;display:flex;align-items:center;justify-content:center;padding:1rem;';
+    modal.innerHTML =
+        '<div style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:1.25rem;max-width:420px;width:100%;">' +
+            '<h3 style="margin-bottom:0.75rem;">Share Playlist</h3>' +
+            '<p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:0.6rem;">' + title + '</p>' +
+            '<div class="form-group" style="margin-bottom:0.6rem;">' +
+                '<label>Send to Friend</label>' +
+                '<select id="splRecipient"><option value="">Loading…</option></select>' +
+            '</div>' +
+            '<div class="form-group" style="margin-bottom:0.75rem;">' +
+                '<label>Message (optional)</label>' +
+                '<input type="text" id="splMessage" placeholder="Check out this playlist!" maxlength="500">' +
+            '</div>' +
+            '<div style="display:flex;gap:0.5rem;">' +
+                '<button class="btn btn-primary" onclick="sendPlaylistShare(' + playlistId + ')">Send</button>' +
+                '<button class="btn" style="background:var(--border);" onclick="document.getElementById(\'sharePlaylistModal\').remove()">Cancel</button>' +
+            '</div>' +
+            '<div id="splStatus" style="margin-top:0.5rem;"></div>' +
+        '</div>';
+    document.body.appendChild(modal);
+    fetch('/social/api/friends').then(r=>r.json()).then(function(friends) {
+        var sel = document.getElementById('splRecipient');
+        if (!sel) return;
+        sel.innerHTML = '<option value="">— select friend —</option>' +
+            friends.map(f=>'<option value="'+f.id+'">'+f.display_name+' (@'+f.username+')</option>').join('');
+    }).catch(()=>{ var s=document.getElementById('splRecipient'); if(s) s.innerHTML='<option value="">No friends yet</option>'; });
+}
+
+function sendPlaylistShare(playlistId) {
+    var recipientId = parseInt(document.getElementById('splRecipient').value);
+    var message = document.getElementById('splMessage').value.trim();
+    var status = document.getElementById('splStatus');
+    if (!recipientId) { alert('Select a friend.'); return; }
+    fetch('/social/share', {
+        method:'POST',
+        headers:{'Content-Type':'application/json','X-CSRFToken':document.querySelector('meta[name="csrf-token"]').content},
+        body:JSON.stringify({recipient_id:recipientId, item_type:'playlist', playlist_id:playlistId, message:message})
+    }).then(r=>r.json()).then(function(d) {
+        if (d.ok) { status.innerHTML='<span style="color:var(--accent);">Sent!</span>'; setTimeout(()=>{var m=document.getElementById('sharePlaylistModal');if(m)m.remove();}, 1200); }
+        else status.innerHTML='<span style="color:var(--danger);">'+(d.error||'Error')+'</span>';
+    });
+}
 </script>
 {% endblock %}
