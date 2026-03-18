@@ -98,6 +98,7 @@
                     <th>Username</th>
                     <th>Display Name</th>
                     <th>Admin</th>
+                    <th>AI Access</th>
                     <th>Temp PW</th>
                     <th>Created</th>
                     <th>Actions</th>
@@ -109,6 +110,7 @@
                     <td><strong>{{ user.username }}</strong></td>
                     <td>{{ user.display_name or '-' }}</td>
                     <td>{{ 'Yes' if user.is_admin else 'No' }}</td>
+                    <td style="color: {{ 'var(--accent)' if user.use_system_ai_key else 'var(--text-muted)' }};">{{ 'Yes' if user.use_system_ai_key else 'No' }}</td>
                     <td>{{ 'Pending' if user.must_change_password else '-' }}</td>
                     <td>{{ user.created_at.strftime('%Y-%m-%d') if user.created_at else '-' }}</td>
                     <td>

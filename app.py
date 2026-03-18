@@ -11,13 +11,24 @@ from models import db, User
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 
-# --- Reverse proxy support ---
-# When behind a reverse proxy (nginx, Caddy, etc.), trust X-Forwarded-For headers
-# so that request.remote_addr reflects the real client IP.
-_proxy_count = int(os.environ.get('PROXY_COUNT', '0'))
-if _proxy_count > 0:
-    from werkzeug.middleware.proxy_fix import ProxyFix
-    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=_proxy_count, x_proto=1, x_host=1)
+# --- Reverse proxy / Cloudflare real-IP support ---
+# WSGI middleware that runs BEFORE Flask — sets REMOTE_ADDR from
+# Cloudflare's CF-Connecting-IP header, falling back to X-Forwarded-For.
+class _CloudflareProxyFix:
+    def __init__(self, wsgi_app):
+        self._app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        # HTTP headers arrive as HTTP_<NAME> in WSGI environ
+        cf_ip = environ.get('HTTP_CF_CONNECTING_IP')
+        if cf_ip:
+            environ['REMOTE_ADDR'] = cf_ip
+        elif environ.get('HTTP_X_FORWARDED_FOR'):
+            # Take the first (leftmost) IP — the original client
+            environ['REMOTE_ADDR'] = environ['HTTP_X_FORWARDED_FOR'].split(',')[0].strip()
+        return self._app(environ, start_response)
+
+app.wsgi_app = _CloudflareProxyFix(app.wsgi_app)
 
 # --- SECRET_KEY: require a real secret in production ---
 _secret = os.environ.get('SECRET_KEY', '')
