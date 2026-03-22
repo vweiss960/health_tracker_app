@@ -98,7 +98,7 @@
     </form>
 </div>
 
-<div class="card" id="pwaInstallCard" style="display:none;">
+<div class="card" id="pwaInstallCard">
     <h2>Install App</h2>
     <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.9rem;">
         Install GritBoard on your device for a native app experience — home screen icon, full-screen mode, and faster access.
@@ -106,6 +106,10 @@
     <button type="button" id="pwaInstallBtn" class="btn btn-primary" onclick="installPWA()" style="display:none;">
         Install GritBoard
     </button>
+    <p id="pwaManualInstructions" style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">
+        <strong>Android:</strong> Open in Chrome, tap the menu (&#8942;) and select <em>"Add to Home screen"</em> or <em>"Install app"</em>.<br>
+        <strong>iPhone:</strong> Open in Safari, tap the share button and select <em>"Add to Home Screen"</em>.
+    </p>
 </div>
 
 <div class="card">
@@ -157,14 +161,17 @@
 (function() {
     var card = document.getElementById('pwaInstallCard');
     var btn = document.getElementById('pwaInstallBtn');
-    if (_gbInstallPrompt) {
-        card.style.display = 'block';
+    var manual = document.getElementById('pwaManualInstructions');
+    function showInstallBtn() {
         btn.style.display = 'inline-flex';
+        if (manual) manual.style.display = 'none';
+    }
+    if (_gbInstallPrompt) {
+        showInstallBtn();
     }
     // Also listen in case the event fires after page load
     window.addEventListener('beforeinstallprompt', function() {
-        card.style.display = 'block';
-        btn.style.display = 'inline-flex';
+        showInstallBtn();
     });
 })();
 function clearYtKey() {

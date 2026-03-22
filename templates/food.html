@@ -68,29 +68,8 @@
     <!-- Single Item Panel: placeholder, actual form is in modal -->
     <div id="panel-singleItem" class="add-panel" style="display:none;"></div>
 
-    <!-- Common Meal Panel -->
-    <div id="panel-commonMeal" class="add-panel" style="display:none;">
-        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Select a saved common meal to add all its items at once.</p>
-        {% if common_meals %}
-        <div class="common-meal-list">
-            {% for cm in common_meals %}
-            <div class="common-meal-option" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem;">
-                <div style="flex: 1;">
-                    <strong>{{ cm.name }}</strong>
-                    <span style="color: var(--text-muted); font-size: 0.8rem;">({{ cm.items | length }} items)</span>
-                    <div style="font-size: 0.75rem; color: var(--text-muted);">
-                        {% for item in cm.items[:3] %}{{ item.food_name }}{% if not loop.last %}, {% endif %}{% endfor %}{% if cm.items | length > 3 %}...{% endif %}
-                    </div>
-                </div>
-                <button type="button" class="btn btn-primary btn-sm" onclick="promptMealType({{ cm.id }})">Add</button>
-                <button type="button" class="btn btn-danger btn-sm" onclick="deleteCommonMeal({{ cm.id }})" title="Delete">X</button>
-            </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p style="color: var(--text-muted);">No common meals saved yet. You can save a common meal from any meal section below.</p>
-        {% endif %}
-    </div>
+    <!-- Common Meal Panel: placeholder, actual content is in modal -->
+    <div id="panel-commonMeal" class="add-panel" style="display:none;"></div>
 
     <!-- Meal Type Picker Modal -->
     <div id="mealTypeModal" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(0,0,0,0.6); align-items:center; justify-content:center;">
@@ -106,62 +85,11 @@
         </div>
     </div>
 
-    <!-- Common Food Item Panel -->
-    <div id="panel-commonFood" class="add-panel" style="display:none;">
-        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Your most frequently logged food items.</p>
-        <div class="form-grid" style="margin-bottom: 0.75rem;">
-            <div class="form-group">
-                <label>Meal Type</label>
-                <select id="commonFoodMealType">
-                    <option value="breakfast">Breakfast</option>
-                    <option value="lunch">Lunch</option>
-                    <option value="dinner">Dinner</option>
-                    <option value="snack">Snack</option>
-                </select>
-            </div>
-        </div>
-        <div id="commonFoodList" style="margin-bottom: 0.75rem;">Loading...</div>
-    </div>
+    <!-- Common Food Item Panel: placeholder, actual content is in modal -->
+    <div id="panel-commonFood" class="add-panel" style="display:none;"></div>
 
-    <!-- Food Photo AI Panel -->
-    <div id="panel-foodPhoto" class="add-panel" style="display:none;">
-        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Take a photo of your food and AI will estimate the calories and macros.</p>
-        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
-            <button type="button" class="btn btn-primary" onclick="document.getElementById('foodCameraInput').click()">Take Photo</button>
-            <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="document.getElementById('foodFileInput').click()">Choose from Gallery</button>
-        </div>
-        <input type="file" accept="image/*" capture="environment" id="foodCameraInput" style="display:none;">
-        <input type="file" accept="image/*" id="foodFileInput" style="display:none;">
-        <div id="foodPhotoPreview" style="display:none; margin-bottom: 0.75rem;">
-            <img id="foodPhotoPreviewImg" style="max-width: 300px; max-height: 200px; border-radius: 8px; border: 1px solid var(--border);">
-            <div style="margin-top: 0.5rem;">
-                <div class="form-group" style="margin-bottom: 0.5rem;">
-                    <label>Meal Type</label>
-                    <select id="foodPhotoMealType">
-                        <option value="breakfast">Breakfast</option>
-                        <option value="lunch">Lunch</option>
-                        <option value="dinner">Dinner</option>
-                        <option value="snack">Snack</option>
-                    </select>
-                </div>
-                <button type="button" class="btn btn-success" id="analyzePhotoBtn" onclick="analyzeFood()">Analyze with AI</button>
-            </div>
-        </div>
-        <div id="foodPhotoLoading" style="display:none; color: var(--text-muted);">
-            Analyzing your food... this may take a few seconds.
-        </div>
-        <div id="foodPhotoResults" style="display:none;">
-            <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem;">AI Estimates <span style="font-size: 0.75rem; color: var(--text-muted);">(review and edit before adding)</span></h3>
-            <div id="foodPhotoItemsList"></div>
-            <div style="margin-top: 0.75rem; padding: 0.5rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);">
-                <strong>Total:</strong> <span id="foodPhotoTotal"></span>
-            </div>
-            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
-                <button type="button" class="btn btn-primary" onclick="addAllAnalyzedItems()">Add All to Food Log</button>
-                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="clearFoodPhoto()">Clear</button>
-            </div>
-        </div>
-    </div>
+    <!-- Food Photo AI Panel: placeholder, actual content is in modal -->
+    <div id="panel-foodPhoto" class="add-panel" style="display:none;"></div>
 
     <!-- Barcode Scanner Modal -->
     <div id="barcodeScannerModal" class="modal-overlay" style="display:none;">
@@ -283,7 +211,6 @@
 
 {% for meal_type in ['breakfast', 'lunch', 'dinner', 'snack'] %}
 {% set meal_entries = entries | selectattr('meal_type', 'equalto', meal_type) | list %}
-{% if meal_entries %}
 {% set meal_cal = meal_entries | map(attribute='calories') | select('number') | sum %}
 {% set meal_protein = meal_entries | map(attribute='protein') | select('number') | sum %}
 {% set meal_carbs = meal_entries | map(attribute='carbs') | select('number') | sum %}
@@ -291,8 +218,23 @@
 <div class="card">
     <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.5rem;">
         <h2 style="margin-bottom: 0;">{{ meal_type | capitalize }}</h2>
-        <button type="button" class="btn btn-sm btn-success" onclick="saveAsCommonMeal('{{ meal_type }}', [{% for e in meal_entries %}{{ e.id }}{% if not loop.last %},{% endif %}{% endfor %}])">Save as Common Meal</button>
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+            {% if meal_entries %}
+            <button type="button" class="btn btn-sm btn-success" onclick="saveAsCommonMeal('{{ meal_type }}', [{% for e in meal_entries %}{{ e.id }}{% if not loop.last %},{% endif %}{% endfor %}])" title="Save as Common Meal" style="font-size: 1.1rem; line-height: 1; padding: 0.25rem 0.5rem;">&#9734;</button>
+            {% endif %}
+            <div class="food-add-dropdown" style="position: relative;">
+                <button type="button" class="btn btn-sm btn-primary meal-add-btn" onclick="toggleMealAddMenu(this)" title="Add Food" style="font-size: 1.2rem; line-height: 1; padding: 0.25rem 0.5rem;">&#43;</button>
+                <div class="food-add-menu meal-add-menu" style="display:none;">
+                    <button type="button" onclick="addFoodToMeal('{{ meal_type }}', 'singleItem')">Add Single Item</button>
+                    <button type="button" onclick="addFoodToMeal('{{ meal_type }}', 'commonMeal')">Add Common Meal</button>
+                    <button type="button" onclick="addFoodToMeal('{{ meal_type }}', 'commonFood')">Add Common Food Item</button>
+                    <button type="button" onclick="addFoodToMeal('{{ meal_type }}', 'foodPhoto')">Snap Food Photo (AI)</button>
+                    <button type="button" onclick="addFoodToMeal('{{ meal_type }}', 'barcode')">Scan Barcode</button>
+                </div>
+            </div>
+        </div>
     </div>
+    {% if meal_entries %}
     <div style="display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; font-size: 0.85rem; color: var(--text-muted);">
         <span><strong>{{ "%.0f"|format(meal_cal) }}</strong> cal</span>
         <span><strong>{{ "%.0f"|format(meal_protein) }}g</strong> protein</span>
@@ -301,48 +243,30 @@
     </div>
     <div class="table-wrap">
     <table>
-        <thead><tr><th>Food</th><th>Serving</th><th>Cal</th><th>Protein</th><th>Carbs</th><th>Fat</th><th></th></tr></thead>
+        <thead><tr><th>Food</th><th>Qty</th><th>Cal</th><th>Protein</th><th>Carbs</th><th>Fat</th><th></th></tr></thead>
         <tbody>
         {% for e in meal_entries %}
-        <tr id="row-{{ e.id }}">
-            <td>{{ e.food_name }}</td>
-            <td>{{ e.serving_size or '-' }}</td>
-            <td>{{ e.calories or '-' }}</td>
-            <td>{{ e.protein or '-' }}</td>
-            <td>{{ e.carbs or '-' }}</td>
-            <td>{{ e.fat or '-' }}</td>
-            <td>
-                <div class="entry-actions" style="position: relative;">
-                    <button type="button" class="btn btn-sm btn-primary" onclick="toggleEntryMenu(this)">Actions</button>
-                    <div class="entry-action-menu" style="display:none;">
-                        <button type="button"
-                            data-id="{{ e.id }}"
-                            data-meal="{{ e.meal_type or '' }}"
-                            data-name="{{ e.food_name or '' }}"
-                            data-serving="{{ e.serving_size or '' }}"
-                            data-cal="{{ e.calories or '' }}"
-                            data-protein="{{ e.protein or '' }}"
-                            data-carbs="{{ e.carbs or '' }}"
-                            data-fat="{{ e.fat or '' }}"
-                            data-fiber="{{ e.fiber or '' }}"
-                            onclick="editFromBtn(this)">Edit</button>
-                        <button type="button" onclick="duplicateEntry({{ e.id }})">Duplicate</button>
-                        <button type="button" onclick="deleteEntry({{ e.id }})" style="color: var(--danger);">Delete</button>
-                    </div>
-                </div>
-            </td>
+        <tr id="row-{{ e.id }}" data-id="{{ e.id }}">
+            <td class="editable" data-field="food_name" data-type="text">{{ e.food_name }}</td>
+            <td class="editable" data-field="serving_size" data-type="serving">{{ e.serving_size or '1' }}</td>
+            <td class="editable" data-field="calories" data-type="number">{{ e.calories if e.calories is not none else '' }}</td>
+            <td class="editable" data-field="protein" data-type="number">{{ e.protein if e.protein is not none else '' }}</td>
+            <td class="editable" data-field="carbs" data-type="number">{{ e.carbs if e.carbs is not none else '' }}</td>
+            <td class="editable" data-field="fat" data-type="number">{{ e.fat if e.fat is not none else '' }}</td>
+            <td><button type="button" class="btn btn-danger btn-sm" onclick="deleteEntry({{ e.id }})" style="padding: 0.15rem 0.4rem; font-size: 0.75rem; line-height: 1;">&times;</button></td>
         </tr>
         {% endfor %}
         </tbody>
     </table>
     </div>
+    {% else %}
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin: 0;">No items yet. Click "Add Food +" to get started.</p>
+    {% endif %}
 </div>
-{% endif %}
 {% endfor %}
 
-<!-- Hidden forms for duplicate/delete -->
+<!-- Hidden forms for delete -->
 {% for e in entries %}
-<form method="POST" action="{{ url_for('food.duplicate_food', entry_id=e.id) }}" id="dupForm-{{ e.id }}" style="display:none;"></form>
 <form method="POST" action="{{ url_for('food.delete_food', entry_id=e.id) }}" id="delForm-{{ e.id }}" style="display:none;"></form>
 {% endfor %}
 
@@ -369,8 +293,8 @@
                 <input type="text" name="food_name" id="foodName" placeholder="e.g. Grilled chicken breast 6oz" required>
             </div>
             <div class="form-group" style="margin-bottom: 0.6rem;">
-                <label>Serving Size</label>
-                <input type="text" name="serving_size" placeholder="e.g. 1 cup, 6 oz">
+                <label>Servings</label>
+                <input type="number" step="0.1" min="0.1" name="serving_size" value="1" placeholder="1">
             </div>
             <div class="single-item-macros">
                 <div class="form-group">
@@ -401,62 +325,112 @@
                 <button type="button" class="btn btn-sm" id="aiLookupBtn" onclick="lookupAI()" style="background: var(--warning); color: white;">AI Estimate</button>
             </div>
             <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                <button type="submit" class="btn btn-primary" style="flex: 1;">Add Entry</button>
+                <button type="submit" class="btn btn-primary" style="flex: 1;">Save</button>
+                <button type="button" class="btn btn-success" style="flex: 1;" onclick="saveAndAddAnother()">Save +</button>
                 <button type="button" class="btn" onclick="closeModal('singleItemModal')" style="background: var(--border);">Cancel</button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- Edit Modal -->
-<div id="editModal" class="modal-overlay" style="display:none;">
-    <div class="modal-content card">
-        <h2>Edit Food Entry</h2>
-        <form method="POST" id="editForm">
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Meal</label>
-                    <select name="meal_type" id="editMealType">
+
+<!-- Common Meal Modal -->
+<div id="commonMealModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card" style="max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+            <h2 style="margin-bottom: 0;">Add Common Meal</h2>
+            <button type="button" class="btn btn-sm" onclick="closeModal('commonMealModal')" style="background: var(--border); line-height: 1; padding: 0.3rem 0.6rem;">&times;</button>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Select a saved common meal to add all its items at once.</p>
+        {% if common_meals %}
+        <div class="common-meal-list">
+            {% for cm in common_meals %}
+            <div class="common-meal-option" style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 0.5rem;">
+                <div style="flex: 1;">
+                    <strong>{{ cm.name }}</strong>
+                    <span style="color: var(--text-muted); font-size: 0.8rem;">({{ cm.items | length }} items)</span>
+                    <div style="font-size: 0.75rem; color: var(--text-muted);">
+                        {% for item in cm.items[:3] %}{{ item.food_name }}{% if not loop.last %}, {% endif %}{% endfor %}{% if cm.items | length > 3 %}...{% endif %}
+                    </div>
+                </div>
+                <button type="button" class="btn btn-primary btn-sm" onclick="promptMealType({{ cm.id }})">Add</button>
+                <button type="button" class="btn btn-danger btn-sm" onclick="deleteCommonMeal({{ cm.id }})" title="Delete">X</button>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p style="color: var(--text-muted);">No common meals saved yet. You can save a common meal from any meal section below.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Common Food Item Modal -->
+<div id="commonFoodModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card" style="max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+            <h2 style="margin-bottom: 0;">Add Common Food Item</h2>
+            <button type="button" class="btn btn-sm" onclick="closeModal('commonFoodModal')" style="background: var(--border); line-height: 1; padding: 0.3rem 0.6rem;">&times;</button>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Your most frequently logged food items.</p>
+        <div class="form-grid" style="margin-bottom: 0.75rem;">
+            <div class="form-group">
+                <label>Meal Type</label>
+                <select id="commonFoodMealType">
+                    <option value="breakfast">Breakfast</option>
+                    <option value="lunch">Lunch</option>
+                    <option value="dinner">Dinner</option>
+                    <option value="snack">Snack</option>
+                </select>
+            </div>
+        </div>
+        <div id="commonFoodList" style="margin-bottom: 0.75rem;">Loading...</div>
+    </div>
+</div>
+
+<!-- Food Photo AI Modal -->
+<div id="foodPhotoModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card" style="max-width: 500px; width: 90%; max-height: 90vh; overflow-y: auto;">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+            <h2 style="margin-bottom: 0;">Snap Food Photo (AI)</h2>
+            <button type="button" class="btn btn-sm" onclick="closeModal('foodPhotoModal')" style="background: var(--border); line-height: 1; padding: 0.3rem 0.6rem;">&times;</button>
+        </div>
+        <p style="color: var(--text-muted); margin-bottom: 0.75rem;">Take a photo of your food and AI will estimate the calories and macros.</p>
+        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.75rem;">
+            <button type="button" class="btn btn-primary" onclick="document.getElementById('foodCameraInput').click()">Take Photo</button>
+            <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="document.getElementById('foodFileInput').click()">Choose from Gallery</button>
+        </div>
+        <input type="file" accept="image/*" capture="environment" id="foodCameraInput" style="display:none;">
+        <input type="file" accept="image/*" id="foodFileInput" style="display:none;">
+        <div id="foodPhotoPreview" style="display:none; margin-bottom: 0.75rem;">
+            <img id="foodPhotoPreviewImg" style="max-width: 300px; max-height: 200px; border-radius: 8px; border: 1px solid var(--border);">
+            <div style="margin-top: 0.5rem;">
+                <div class="form-group" style="margin-bottom: 0.5rem;">
+                    <label>Meal Type</label>
+                    <select id="foodPhotoMealType">
                         <option value="breakfast">Breakfast</option>
                         <option value="lunch">Lunch</option>
                         <option value="dinner">Dinner</option>
                         <option value="snack">Snack</option>
                     </select>
                 </div>
-                <div class="form-group" style="grid-column: span 2;">
-                    <label>Food Item</label>
-                    <input type="text" name="food_name" id="editFoodName" required>
-                </div>
-                <div class="form-group">
-                    <label>Serving Size</label>
-                    <input type="text" name="serving_size" id="editServing">
-                </div>
-                <div class="form-group">
-                    <label>Calories</label>
-                    <input type="number" step="0.1" name="calories" id="editCal">
-                </div>
-                <div class="form-group">
-                    <label>Protein (g)</label>
-                    <input type="number" step="0.1" name="protein" id="editProtein">
-                </div>
-                <div class="form-group">
-                    <label>Carbs (g)</label>
-                    <input type="number" step="0.1" name="carbs" id="editCarbs">
-                </div>
-                <div class="form-group">
-                    <label>Fat (g)</label>
-                    <input type="number" step="0.1" name="fat" id="editFat">
-                </div>
-                <div class="form-group">
-                    <label>Fiber (g)</label>
-                    <input type="number" step="0.1" name="fiber" id="editFiber">
-                </div>
+                <button type="button" class="btn btn-success" id="analyzePhotoBtn" onclick="analyzeFood()">Analyze with AI</button>
             </div>
-            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
-                <button type="submit" class="btn btn-primary">Save Changes</button>
-                <button type="button" class="btn btn-sm" onclick="closeModal('editModal')" style="background: var(--border);">Cancel</button>
+        </div>
+        <div id="foodPhotoLoading" style="display:none; color: var(--text-muted);">
+            Analyzing your food... this may take a few seconds.
+        </div>
+        <div id="foodPhotoResults" style="display:none;">
+            <h3 style="font-size: 0.95rem; margin-bottom: 0.5rem;">AI Estimates <span style="font-size: 0.75rem; color: var(--text-muted);">(review and edit before adding)</span></h3>
+            <div id="foodPhotoItemsList"></div>
+            <div style="margin-top: 0.75rem; padding: 0.5rem; background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);">
+                <strong>Total:</strong> <span id="foodPhotoTotal"></span>
             </div>
-        </form>
+            <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-primary" onclick="addAllAnalyzedItems(false)">Save</button>
+                <button type="button" class="btn btn-success" onclick="addAllAnalyzedItems(true)">Save +</button>
+                <button type="button" class="btn btn-sm" style="background: var(--border);" onclick="clearFoodPhoto()">Clear</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -493,6 +467,89 @@ if (!new URLSearchParams(window.location.search).has('date')) {
 
 const viewDate = '{{ view_date.isoformat() }}';
 
+// Track whether items were added via Save+ so closing/cancelling reloads the page
+var _itemsAddedDirty = false;
+
+// --- Add Food to specific meal section ---
+var _activeMealType = null;
+
+function setActiveMealType(mealType) {
+    _activeMealType = mealType;
+    // Pre-select meal type in all selectors
+    var selectors = [
+        '#singleItemModal select[name="meal_type"]',
+        '#commonFoodMealType',
+        '#foodPhotoMealType'
+    ];
+    selectors.forEach(function(sel) {
+        var el = document.querySelector(sel);
+        if (el) el.value = mealType;
+    });
+}
+
+function toggleMealAddMenu(btn) {
+    // Close all other meal add menus first
+    document.querySelectorAll('.meal-add-menu').forEach(function(m) {
+        if (m !== btn.nextElementSibling) m.style.display = 'none';
+    });
+    var menu = btn.nextElementSibling;
+    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
+}
+
+function addFoodToMeal(mealType, panelName) {
+    // Close any open meal add menus
+    document.querySelectorAll('.meal-add-menu').forEach(function(m) { m.style.display = 'none'; });
+    setActiveMealType(mealType);
+    document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
+
+    if (panelName === 'singleItem') {
+        document.getElementById('singleItemModal').style.display = 'flex';
+        document.getElementById('foodName').focus();
+    } else if (panelName === 'commonMeal') {
+        document.getElementById('commonMealModal').style.display = 'flex';
+    } else if (panelName === 'commonFood') {
+        document.getElementById('commonFoodModal').style.display = 'flex';
+        loadCommonFoods();
+    } else if (panelName === 'foodPhoto') {
+        document.getElementById('foodPhotoModal').style.display = 'flex';
+    } else if (panelName === 'barcode') {
+        document.getElementById('barcodeScannerModal').style.display = 'flex';
+        startBarcodeScanner();
+    }
+}
+
+// --- Save and Add Another (Single Item Modal) ---
+function saveAndAddAnother() {
+    var form = document.getElementById('foodForm');
+    var foodName = form.querySelector('input[name="food_name"]');
+    if (!foodName.value.trim()) { alert('Enter a food item first.'); foodName.focus(); return; }
+
+    var formData = new URLSearchParams(new FormData(form));
+    fetch('{{ url_for("food.add_food") }}', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: formData,
+        redirect: 'manual'
+    }).then(function() {
+        // Keep meal type, clear everything else
+        var mealType = form.querySelector('select[name="meal_type"]').value;
+        form.reset();
+        form.querySelector('select[name="meal_type"]').value = mealType;
+        form.querySelector('input[name="date"]').value = viewDate;
+        foodName.focus();
+        _itemsAddedDirty = true;
+    });
+}
+
+// --- Reset Barcode Scanner for another scan ---
+function resetBarcodeScanner() {
+    document.getElementById('barcode-result').style.display = 'none';
+    document.getElementById('barcode-result').innerHTML = '';
+    document.getElementById('manualBarcode').value = '';
+    window._barcodeProduct = null;
+    startBarcodeScanner();
+}
+
 // --- Add Food Dropdown Menu ---
 function toggleAddMenu() {
     const menu = document.getElementById('addMenu');
@@ -506,14 +563,15 @@ document.addEventListener('click', function(e) {
     if (menu && !menu.contains(e.target) && e.target !== btn) {
         menu.style.display = 'none';
     }
-    // Close any open entry action menus
-    document.querySelectorAll('.entry-action-menu').forEach(m => {
+    // Close any open meal section add menus
+    document.querySelectorAll('.meal-add-menu').forEach(m => {
         if (!m.parentElement.contains(e.target)) m.style.display = 'none';
     });
 });
 
 function showPanel(name) {
     document.getElementById('addMenu').style.display = 'none';
+    _activeMealType = null; // Reset - top-level menu requires manual meal selection
 
     // Stop barcode scanner when leaving barcode panel
     if (typeof html5QrCode !== 'undefined' && html5QrCode) {
@@ -521,66 +579,142 @@ function showPanel(name) {
         html5QrCode = null;
     }
 
-    // Single item opens as a modal popup
+    document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
+
     if (name === 'singleItem') {
-        document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
         document.getElementById('singleItemModal').style.display = 'flex';
         document.getElementById('foodName').focus();
-        return;
-    }
-
-    // Barcode opens as a centered modal popup
-    if (name === 'barcode') {
-        document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
+    } else if (name === 'barcode') {
         document.getElementById('barcodeScannerModal').style.display = 'flex';
         startBarcodeScanner();
-        return;
+    } else if (name === 'commonMeal') {
+        document.getElementById('commonMealModal').style.display = 'flex';
+    } else if (name === 'commonFood') {
+        document.getElementById('commonFoodModal').style.display = 'flex';
+        loadCommonFoods();
+    } else if (name === 'foodPhoto') {
+        document.getElementById('foodPhotoModal').style.display = 'flex';
+    } else {
+        document.getElementById('panel-' + name).style.display = 'block';
     }
-
-    document.querySelectorAll('.add-panel').forEach(p => p.style.display = 'none');
-    document.getElementById('panel-' + name).style.display = 'block';
-
-    // Load common foods on demand
-    if (name === 'commonFood') loadCommonFoods();
 }
 
-// --- Entry Actions Dropdown ---
-function toggleEntryMenu(btn) {
-    const menu = btn.nextElementSibling;
-    // Close all other menus first
-    document.querySelectorAll('.entry-action-menu').forEach(m => {
-        if (m !== menu) m.style.display = 'none';
-    });
-    menu.style.display = menu.style.display === 'none' ? 'block' : 'none';
-}
-
-function duplicateEntry(id) {
-    document.getElementById('dupForm-' + id).submit();
-}
-
+// --- Delete Entry ---
+var _deletePending = false;
 function deleteEntry(id) {
     if (confirm('Delete this entry?')) {
+        _deletePending = true;
         document.getElementById('delForm-' + id).submit();
     }
 }
 
-// --- Edit Modal ---
-function editFromBtn(btn) {
-    document.getElementById('editForm').action = `/food/edit/${btn.dataset.id}`;
-    document.getElementById('editMealType').value = btn.dataset.meal || 'snack';
-    document.getElementById('editFoodName').value = btn.dataset.name || '';
-    document.getElementById('editServing').value = btn.dataset.serving || '';
-    document.getElementById('editCal').value = btn.dataset.cal || '';
-    document.getElementById('editProtein').value = btn.dataset.protein || '';
-    document.getElementById('editCarbs').value = btn.dataset.carbs || '';
-    document.getElementById('editFat').value = btn.dataset.fat || '';
-    document.getElementById('editFiber').value = btn.dataset.fiber || '';
-    document.getElementById('editModal').style.display = 'flex';
-    // Close action menu
-    document.querySelectorAll('.entry-action-menu').forEach(m => m.style.display = 'none');
+// --- Inline Editing ---
+function getCellValue(cell) {
+    var inp = cell.querySelector('.inline-edit');
+    if (inp) return inp.value.trim();
+    var v = cell.textContent.trim();
+    return (v === '-') ? '' : v;
 }
 
+function scaleNutrition(row, oldServing, newServing) {
+    if (!oldServing || oldServing <= 0 || !newServing || newServing <= 0) return;
+    var ratio = newServing / oldServing;
+    var nutrientFields = ['calories', 'protein', 'carbs', 'fat'];
+    row.querySelectorAll('td.editable').forEach(function(cell) {
+        if (nutrientFields.indexOf(cell.dataset.field) === -1) return;
+        var val = parseFloat(getCellValue(cell)) || 0;
+        var scaled = Math.round(val * ratio * 10) / 10;
+        cell.textContent = scaled || '';
+    });
+}
+
+document.querySelectorAll('td.editable').forEach(function(td) {
+    td.addEventListener('click', function() {
+        if (td.querySelector('.inline-edit')) return;
+        var field = td.dataset.field;
+        var type = td.dataset.type;
+        var currentValue = td.textContent.trim();
+        if (currentValue === '-') currentValue = '';
+
+        var input = document.createElement('input');
+        input.className = 'inline-edit';
+        input.type = (type === 'number' || type === 'serving') ? 'number' : 'text';
+        if (type === 'number') input.step = '0.1';
+        if (type === 'serving') { input.step = '0.1'; input.min = '0.1'; }
+        input.value = currentValue;
+        td.textContent = '';
+        td.appendChild(input);
+        input.focus();
+        input.select();
+
+        var oldServing = (type === 'serving') ? (parseFloat(currentValue) || 1) : null;
+
+        function saveEdit() {
+            var newValue = input.value.trim();
+            var row = td.closest('tr');
+            var entryId = row.dataset.id;
+
+            // If serving changed, scale nutrition cells before collecting values
+            if (type === 'serving') {
+                var newServing = parseFloat(newValue) || 1;
+                if (newServing !== oldServing) {
+                    scaleNutrition(row, oldServing, newServing);
+                }
+                td.textContent = newValue || '1';
+            } else {
+                td.textContent = newValue || (type === 'number' ? '' : '');
+            }
+
+            // Build form data with all current row values
+            var formData = new URLSearchParams();
+            row.querySelectorAll('td.editable').forEach(function(cell) {
+                formData.append(cell.dataset.field, getCellValue(cell));
+            });
+
+            // Also send meal_type from the section
+            var card = td.closest('.card');
+            var heading = card.querySelector('h2');
+            if (heading) {
+                formData.append('meal_type', heading.textContent.trim().toLowerCase());
+            }
+
+            fetch('/food/edit/' + entryId, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: formData,
+                redirect: 'manual'
+            }).then(function() {
+                location.reload();
+            }).catch(function() {
+                location.reload();
+            });
+        }
+
+        input.addEventListener('blur', saveEdit);
+        input.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
+            if (e.key === 'Escape') {
+                td.textContent = currentValue || (type === 'serving' ? '1' : (type === 'number' ? '' : ''));
+            }
+            if (e.key === 'Tab') {
+                e.preventDefault();
+                input.blur();
+                var nextTd = td.nextElementSibling;
+                while (nextTd && !nextTd.classList.contains('editable')) {
+                    nextTd = nextTd.nextElementSibling;
+                }
+                if (nextTd) nextTd.click();
+            }
+        });
+    });
+});
+
 function closeModal(id) {
+    if (_itemsAddedDirty) {
+        _itemsAddedDirty = false;
+        location.reload();
+        return;
+    }
     document.getElementById(id).style.display = 'none';
 }
 
@@ -589,6 +723,7 @@ document.querySelectorAll('.modal-overlay').forEach(m => {
     m.addEventListener('click', function(e) {
         if (e.target === this) {
             if (this.id === 'barcodeScannerModal') { closeBarcodeModal(); return; }
+            if (_itemsAddedDirty) { _itemsAddedDirty = false; location.reload(); return; }
             this.style.display = 'none';
         }
     });
@@ -618,6 +753,11 @@ var _pendingCommonMealId = null;
 
 function promptMealType(mealId) {
     _pendingCommonMealId = mealId;
+    // If a meal type is already set from a meal section, skip the picker
+    if (_activeMealType) {
+        confirmMealType(_activeMealType);
+        return;
+    }
     var modal = document.getElementById('mealTypeModal');
     modal.style.display = 'flex';
 }
@@ -921,7 +1061,7 @@ function displayFoodPhotoResults(result) {
     document.getElementById('foodPhotoResults').style.display = 'block';
 }
 
-function addAllAnalyzedItems() {
+function addAllAnalyzedItems(addAnother) {
     var items = window._foodPhotoItems || [];
     if (!items.length) return;
     var mealType = document.getElementById('foodPhotoMealType').value;
@@ -940,7 +1080,14 @@ function addAllAnalyzedItems() {
             redirect: 'manual'
         });
     });
-    Promise.all(promises).then(function() { location.reload(); });
+    Promise.all(promises).then(function() {
+        if (addAnother) {
+            clearFoodPhoto();
+            _itemsAddedDirty = true;
+        } else {
+            location.reload();
+        }
+    });
 }
 
 function clearFoodPhoto() {
@@ -958,6 +1105,7 @@ function closeBarcodeModal() {
         html5QrCode.stop().catch(function(){});
         html5QrCode = null;
     }
+    if (_itemsAddedDirty) { _itemsAddedDirty = false; location.reload(); return; }
     document.getElementById('barcodeScannerModal').style.display = 'none';
 }
 
@@ -1042,11 +1190,19 @@ function lookupBarcode(barcode) {
                         '<option value="dinner">Dinner</option><option value="snack">Snack</option>' +
                     '</select>' +
                 '</div>' +
-                '<button type="button" class="btn btn-primary" onclick="addBarcodeItem()">Add to Food Log</button>' +
+                '<div style="display: flex; gap: 0.5rem;">' +
+                '<button type="button" class="btn btn-primary" style="flex:1;" onclick="addBarcodeItem(false)">Save</button>' +
+                '<button type="button" class="btn btn-success" style="flex:1;" onclick="addBarcodeItem(true)">Save +</button>' +
+                '</div>' +
             '</div>';
 
         // Store for adding
         window._barcodeProduct = p;
+        // Pre-select meal type if set from a meal section
+        if (_activeMealType) {
+            var sel = document.getElementById('barcodeMealType');
+            if (sel) sel.value = _activeMealType;
+        }
     })
     .catch(function(err) {
         document.getElementById('manualBarcode').value = barcode;
@@ -1081,8 +1237,16 @@ function lookupBarcode(barcode) {
                         '<option value="dinner">Dinner</option><option value="snack">Snack</option>' +
                     '</select>' +
                 '</div>' +
-                '<button type="button" class="btn btn-primary" onclick="addManualBarcodeItem(\'' + barcode + '\')">Add to Food Log &amp; Save</button>' +
+                '<div style="display: flex; gap: 0.5rem;">' +
+                '<button type="button" class="btn btn-primary" style="flex:1;" onclick="addManualBarcodeItem(\'' + barcode + '\', false)">Save</button>' +
+                '<button type="button" class="btn btn-success" style="flex:1;" onclick="addManualBarcodeItem(\'' + barcode + '\', true)">Save +</button>' +
+                '</div>' +
             '</div>';
+        // Pre-select meal type if set from a meal section
+        if (_activeMealType) {
+            var sel = document.getElementById('barcodeManualMealType');
+            if (sel) sel.value = _activeMealType;
+        }
     });
 }
 
@@ -1109,7 +1273,7 @@ function updateBarcodeNutrition(grams) {
         cal + ' cal | ' + pro + 'g P | ' + carb + 'g C | ' + fat + 'g F | ' + fib + 'g fiber';
 }
 
-function addBarcodeItem() {
+function addBarcodeItem(addAnother) {
     var p = window._barcodeProduct;
     if (!p) return;
     var mealType = document.getElementById('barcodeMealType').value;
@@ -1131,10 +1295,17 @@ function addBarcodeItem() {
             fiber: ((n.fiber * factor) || 0).toFixed(1)
         }),
         redirect: 'manual'
-    }).then(function() { location.reload(); });
+    }).then(function() {
+        if (addAnother) {
+            resetBarcodeScanner();
+            _itemsAddedDirty = true;
+        } else {
+            location.reload();
+        }
+    });
 }
 
-function addManualBarcodeItem(barcode) {
+function addManualBarcodeItem(barcode, addAnother) {
     var name = document.getElementById('barcodeManualName').value.trim();
     if (!name) { alert('Please enter a product name.'); return; }
     var brand = document.getElementById('barcodeManualBrand').value.trim();
@@ -1157,8 +1328,16 @@ function addManualBarcodeItem(barcode) {
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
-        if (data.ok) location.reload();
-        else alert(data.error || 'Failed to add.');
+        if (data.ok) {
+            if (addAnother) {
+                resetBarcodeScanner();
+                _itemsAddedDirty = true;
+            } else {
+                location.reload();
+            }
+        } else {
+            alert(data.error || 'Failed to add.');
+        }
     });
 }
 

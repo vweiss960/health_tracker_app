@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash
+import os
+from flask import Blueprint, render_template, request, redirect, url_for, flash, current_app, send_from_directory
 from flask_login import login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from models import db
@@ -41,7 +42,21 @@ def settings():
         db.session.commit()
         flash('Settings saved', 'success')
         return redirect(url_for('settings.settings'))
-    return render_template('settings.html')
+    apk_path = os.path.join(current_app.static_folder, 'android', 'GritBoard.apk')
+    wrapper_apk_available = os.path.exists(apk_path)
+    return render_template('settings.html', wrapper_apk_available=wrapper_apk_available)
+
+
+@settings_bp.route('/download-app')
+@login_required
+def download_wrapper_app():
+    """Serve the GritBoard wrapper APK."""
+    return send_from_directory(
+        os.path.join(current_app.static_folder, 'android'),
+        'GritBoard.apk',
+        as_attachment=True,
+        mimetype='application/vnd.android.package-archive',
+    )
 
 
 @settings_bp.route('/change-password', methods=['POST'])

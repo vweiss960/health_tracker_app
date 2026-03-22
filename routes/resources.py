@@ -1,4 +1,5 @@
-from flask import Blueprint, render_template, request, jsonify
+import os
+from flask import Blueprint, render_template, request, jsonify, send_from_directory, current_app
 from flask_login import login_required, current_user
 from models import db, SavedPlaylist
 
@@ -67,6 +68,27 @@ def delete_playlist(playlist_id):
 @login_required
 def popup_player():
     return render_template('resources_player.html')
+
+
+@resources_bp.route('/music-app')
+@login_required
+def music_app_page():
+    """Download page for the native Android music player."""
+    apk_path = os.path.join(current_app.static_folder, 'android', 'GritBoard-Music.apk')
+    apk_available = os.path.exists(apk_path)
+    return render_template('resources_music_app.html', apk_available=apk_available)
+
+
+@resources_bp.route('/music-app/download')
+@login_required
+def music_app_download():
+    """Serve the Android APK file."""
+    return send_from_directory(
+        os.path.join(current_app.static_folder, 'android'),
+        'GritBoard-Music.apk',
+        as_attachment=True,
+        mimetype='application/vnd.android.package-archive',
+    )
 
 
 @resources_bp.route('/api/music-search', methods=['POST'])

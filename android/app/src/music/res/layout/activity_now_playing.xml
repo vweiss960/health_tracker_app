@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/music_now_playing_bg"
+    android:padding="24dp">
+
+    <!-- Back button -->
+    <ImageButton
+        android:id="@+id/btnBack"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:src="@android:drawable/ic_menu_revert"
+        android:tint="@color/music_text_primary"
+        android:contentDescription="Back"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Album art -->
+    <ImageView
+        android:id="@+id/ivArt"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:scaleType="centerCrop"
+        android:adjustViewBounds="true"
+        android:background="@color/music_card"
+        android:layout_marginBottom="24dp" />
+
+    <!-- Track info -->
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Not Playing"
+        android:textColor="@color/music_text_primary"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:singleLine="true"
+        android:ellipsize="marquee"
+        android:marqueeRepeatLimit="marquee_forever"
+        android:focusable="true"
+        android:focusableInTouchMode="true" />
+
+    <TextView
+        android:id="@+id/tvArtist"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:textColor="@color/music_text_secondary"
+        android:textSize="16sp"
+        android:singleLine="true"
+        android:layout_marginBottom="20dp" />
+
+    <!-- Progress bar -->
+    <SeekBar
+        android:id="@+id/seekBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:progressTint="@color/music_accent"
+        android:thumbTint="@color/music_accent"
+        android:progressBackgroundTint="@color/music_text_secondary"
+        android:max="1000" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/tvElapsed"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="0:00"
+            android:textColor="@color/music_text_secondary"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvRemaining"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="0:00"
+            android:textColor="@color/music_text_secondary"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Transport controls -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:layout_marginBottom="24dp">
+
+        <ImageButton
+            android:id="@+id/btnShuffle"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_sort_by_size"
+            android:tint="@color/music_accent"
+            android:contentDescription="Shuffle" />
+
+        <ImageButton
+            android:id="@+id/btnPrev"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginStart="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_previous"
+            android:tint="@color/music_text_primary"
+            android:contentDescription="Previous"
+            android:scaleType="fitCenter"
+            android:padding="8dp" />
+
+        <ImageButton
+            android:id="@+id/btnPlayPause"
+            android:layout_width="72dp"
+            android:layout_height="72dp"
+            android:layout_marginHorizontal="16dp"
+            android:backgroundTint="@color/music_accent"
+            android:background="@android:drawable/btn_default"
+            android:src="@android:drawable/ic_media_pause"
+            android:tint="#FFFFFF"
+            android:contentDescription="Play/Pause"
+            android:scaleType="fitCenter"
+            android:padding="16dp" />
+
+        <ImageButton
+            android:id="@+id/btnNext"
+            android:layout_width="56dp"
+            android:layout_height="56dp"
+            android:layout_marginEnd="16dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_next"
+            android:tint="@color/music_text_primary"
+            android:contentDescription="Next"
+            android:scaleType="fitCenter"
+            android:padding="8dp" />
+
+        <View
+            android:layout_width="48dp"
+            android:layout_height="48dp" />
+    </LinearLayout>
+
+</LinearLayout>

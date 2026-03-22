@@ -128,6 +128,7 @@ from routes.meal_plan import meal_plan_bp
 from routes.motivation import motivation_bp
 from routes.admin import admin_bp
 from routes.social import social_bp
+from routes.mobile_api import mobile_api_bp
 
 app.register_blueprint(auth_bp)
 # Rate-limit auth endpoints
@@ -144,6 +145,9 @@ app.register_blueprint(meal_plan_bp, url_prefix='/meal-plan')
 app.register_blueprint(motivation_bp, url_prefix='/motivation')
 app.register_blueprint(admin_bp, url_prefix='/admin')
 app.register_blueprint(social_bp, url_prefix='/social')
+app.register_blueprint(mobile_api_bp, url_prefix='/mobile-api')
+csrf.exempt(mobile_api_bp)  # Token auth, no CSRF needed
+limiter.limit("10 per minute")(app.view_functions['mobile_api.login'])
 
 
 # ── Jinja2 custom filters ──────────────────────────────────────────────────────
@@ -243,6 +247,7 @@ def _migrate_db():
         ('users', 'must_change_password', 'BOOLEAN', None),
         ('users', 'use_system_ai_key', 'BOOLEAN', None),
         ('users', 'motivation_text', 'TEXT', None),
+        ('users', 'api_token', 'VARCHAR(64)', None),
     ]
     for table, column, col_type, default in migrations:
         cursor.execute(f"PRAGMA table_info({table})")

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="music_bg">#121212</color>
+    <color name="music_surface">#1e1e1e</color>
+    <color name="music_card">#2a2a2a</color>
+    <color name="music_accent">#e63946</color>
+    <color name="music_accent_dark">#c1121f</color>
+    <color name="music_success">#2d6a4f</color>
+    <color name="music_text_primary">#e0e0e0</color>
+    <color name="music_text_secondary">#888888</color>
+    <color name="music_border">#3a3a3a</color>
+    <color name="music_mini_player_bg">#1e1e1e</color>
+    <color name="music_now_playing_bg">#121212</color>
+</resources>

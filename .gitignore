@@ -211,3 +211,6 @@ needs_updated.txt
 # App data - user uploads and database
 *.sqlite
 static/uploads/
+
+# Android build cache
+android/.gradle/

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Music App - GritBoard{% endblock %}
+{% block content %}
+<h1 style="margin-bottom: 1rem;">GritBoard Music Player</h1>
+
+<div class="card">
+    <h2>Native Android App</h2>
+    <p style="color: var(--text-muted); margin-bottom: 1rem; font-size: 0.95rem;">
+        A dedicated music player that runs natively on your Android phone.
+        Unlike the web player, the native app keeps music playing when your screen is off
+        and automatically skips songs that can't be played.
+    </p>
+
+    <div style="margin-bottom: 1.5rem;">
+        <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Features</h3>
+        <ul style="color: var(--text-muted); font-size: 0.9rem; padding-left: 1.25rem; line-height: 1.8;">
+            <li>Background playback &mdash; music keeps playing when screen is off</li>
+            <li>Lock screen &amp; bluetooth controls</li>
+            <li>Auto-skip blocked or unavailable songs</li>
+            <li>Shuffle playback enabled by default</li>
+            <li>Generate Mix &mdash; describe a mood and AI builds a custom playlist</li>
+            <li>Play your saved GritBoard playlists</li>
+        </ul>
+    </div>
+
+    {% if apk_available %}
+    <a href="{{ url_for('resources.music_app_download') }}"
+       class="btn btn-primary"
+       style="display: inline-block; padding: 0.85rem 2rem; font-size: 1.05rem; text-decoration: none;">
+        Download APK
+    </a>
+    <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.75rem;">
+        After downloading, open the APK file to install.
+        You may need to allow installation from unknown sources in your Android settings.
+    </p>
+    {% else %}
+    <div style="padding: 1rem; background: var(--border); border-radius: 0.5rem;">
+        <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">
+            The APK has not been built yet. Build it in Android Studio and place the file at:<br>
+            <code style="font-size: 0.85rem;">static/android/GritBoard-Music.apk</code>
+        </p>
+    </div>
+    {% endif %}
+</div>
+
+<div class="card" style="margin-top: 1rem;">
+    <h2>How to Install</h2>
+    <ol style="color: var(--text-muted); font-size: 0.9rem; padding-left: 1.25rem; line-height: 2;">
+        <li>Tap <strong>Download APK</strong> above on your Android phone</li>
+        <li>Open the downloaded file (check your notifications or Downloads folder)</li>
+        <li>If prompted, tap <strong>Settings</strong> and enable <em>Allow from this source</em></li>
+        <li>Tap <strong>Install</strong></li>
+        <li>Open the app from your home screen or app drawer</li>
+        <li>Sign in with your GritBoard username and password</li>
+    </ol>
+</div>
+{% endblock %}

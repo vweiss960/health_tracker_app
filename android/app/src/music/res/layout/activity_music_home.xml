@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/music_bg">
+
+    <!-- Toolbar -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="16dp"
+        android:background="@color/music_surface">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="GRITBOARD MUSIC"
+            android:textColor="@color/music_accent"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnLogout"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="Logout"
+            android:tint="@color/music_text_secondary" />
+    </LinearLayout>
+
+    <!-- Content area -->
+    <FrameLayout
+        android:id="@+id/fragmentContainer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Mini Player -->
+    <LinearLayout
+        android:id="@+id/miniPlayer"
+        android:layout_width="match_parent"
+        android:layout_height="64dp"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:paddingHorizontal="8dp"
+        android:background="@color/music_mini_player_bg"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true">
+
+        <ImageView
+            android:id="@+id/ivMiniThumbnail"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:scaleType="centerCrop"
+            android:background="@color/music_card"
+            android:src="@android:drawable/ic_media_play" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical"
+            android:paddingHorizontal="10dp">
+
+            <TextView
+                android:id="@+id/tvMiniTitle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Not Playing"
+                android:textColor="@color/music_text_primary"
+                android:textSize="14sp"
+                android:singleLine="true"
+                android:ellipsize="marquee" />
+
+            <TextView
+                android:id="@+id/tvMiniArtist"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textColor="@color/music_text_secondary"
+                android:textSize="12sp"
+                android:singleLine="true" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnMiniPrev"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_previous"
+            android:tint="@color/music_text_primary"
+            android:contentDescription="Previous" />
+
+        <ImageButton
+            android:id="@+id/btnMiniPlayPause"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_pause"
+            android:tint="@color/music_accent"
+            android:contentDescription="Play/Pause" />
+
+        <ImageButton
+            android:id="@+id/btnMiniNext"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_media_next"
+            android:tint="@color/music_text_primary"
+            android:contentDescription="Next" />
+    </LinearLayout>
+
+    <!-- Bottom Navigation -->
+    <com.google.android.material.bottomnavigation.BottomNavigationView
+        android:id="@+id/bottomNav"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/music_surface"
+        app:itemIconTint="@color/music_accent"
+        app:itemTextColor="@color/music_text_secondary"
+        app:menu="@menu/bottom_nav_menu" />
+
+</LinearLayout>

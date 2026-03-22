@@ -25,6 +25,7 @@ class User(UserMixin, db.Model):
     must_change_password = db.Column(db.Boolean, default=False)
     use_system_ai_key = db.Column(db.Boolean, default=False)
     motivation_text = db.Column(db.Text)  # What motivates the user — drives personalized content
+    api_token = db.Column(db.String(64), unique=True, index=True)  # Bearer token for mobile API
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
     metrics = db.relationship('BodyMetric', backref='user', lazy=True, cascade='all, delete-orphan')
