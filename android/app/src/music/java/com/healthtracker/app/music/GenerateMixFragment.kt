@@ -16,10 +16,13 @@ class GenerateMixFragment : Fragment() {
 
     private lateinit var etPrompt: EditText
     private lateinit var btnGenerate: Button
+    private lateinit var btnSaveMix: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var tvStatus: TextView
     private lateinit var recyclerView: RecyclerView
     private lateinit var apiClient: ApiClient
+    private var currentTracks: List<Track> = emptyList()
+    private var currentPrompt: String = ""
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View {
         return inflater.inflate(R.layout.fragment_generate_mix, container, false)
@@ -31,6 +34,7 @@ class GenerateMixFragment : Fragment() {
 
         etPrompt = view.findViewById(R.id.etPrompt)
         btnGenerate = view.findViewById(R.id.btnGenerate)
+        btnSaveMix = view.findViewById(R.id.btnSaveMix)
         progressBar = view.findViewById(R.id.progressBar)
         tvStatus = view.findViewById(R.id.tvStatus)
         recyclerView = view.findViewById(R.id.recyclerView)
@@ -38,16 +42,19 @@ class GenerateMixFragment : Fragment() {
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
 
         btnGenerate.setOnClickListener { generateMix() }
+        btnSaveMix.setOnClickListener { showSaveDialog() }
     }
 
     private fun generateMix() {
         val prompt = etPrompt.text.toString().trim()
         if (prompt.isEmpty()) return
 
+        currentPrompt = prompt
         progressBar.visibility = View.VISIBLE
         tvStatus.text = "AI is building your mix..."
         tvStatus.visibility = View.VISIBLE
         btnGenerate.isEnabled = false
+        btnSaveMix.visibility = View.GONE
 
         lifecycleScope.launch {
             try {
@@ -60,7 +67,9 @@ class GenerateMixFragment : Fragment() {
                     return@launch
                 }
 
+                currentTracks = tracks
                 tvStatus.text = "${tracks.size} tracks generated"
+                btnSaveMix.visibility = View.VISIBLE
 
                 recyclerView.adapter = TrackAdapter(tracks)
 
@@ -72,6 +81,43 @@ class GenerateMixFragment : Fragment() {
                 btnGenerate.isEnabled = true
                 tvStatus.text = e.message ?: "Failed to generate mix"
             }
+        }
+    }
+
+    private fun showSaveDialog() {
+        val ctx = requireContext()
+        val input = EditText(ctx).apply {
+            hint = "Playlist name"
+            setText(currentPrompt)
+            setPadding(48, 32, 48, 16)
+            setTextColor(resources.getColor(R.color.music_text_primary, null))
+            setHintTextColor(resources.getColor(R.color.music_text_secondary, null))
+        }
+
+        android.app.AlertDialog.Builder(ctx)
+            .setTitle("Save Playlist")
+            .setView(input)
+            .setPositiveButton("Save") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty() && currentTracks.isNotEmpty()) {
+                    saveMix(name)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun saveMix(name: String) {
+        lifecycleScope.launch {
+            try {
+                val success = apiClient.saveMix(name, currentTracks)
+                if (success) {
+                    btnSaveMix.text = "Saved!"
+                    btnSaveMix.isEnabled = false
+                }
+            } catch (e: AuthException) {
+                goToLogin()
+            } catch (_: Exception) { }
         }
     }
 

@@ -4,7 +4,7 @@ import secrets
 from functools import wraps
 from flask import Blueprint, request, jsonify, g
 from werkzeug.security import check_password_hash
-from models import db, User, SavedPlaylist
+from models import db, User, SavedPlaylist, UserPlaylist, UserPlaylistTrack
 
 mobile_api_bp = Blueprint('mobile_api', __name__)
 
@@ -308,6 +308,186 @@ def generate_mix():
         return jsonify({'error': 'Could not find any of the suggested songs'}), 404
 
     return jsonify({'prompt': prompt, 'tracks': tracks})
+
+
+# ── User playlists (saved mixes & favorites) ────────────────────────────────
+
+@mobile_api_bp.route('/user-playlists')
+@token_required
+def user_playlists():
+    """Return the user's custom playlists (saved mixes + favorites)."""
+    playlists = UserPlaylist.query.filter_by(
+        user_id=g.api_user.id
+    ).order_by(UserPlaylist.created_at.desc()).all()
+
+    return jsonify({'playlists': [{
+        'id': p.id,
+        'name': p.name,
+        'playlistType': p.playlist_type,
+        'trackCount': len(p.tracks),
+        'createdAt': p.created_at.isoformat() if p.created_at else '',
+    } for p in playlists]})
+
+
+@mobile_api_bp.route('/user-playlist-tracks/<int:playlist_id>')
+@token_required
+def user_playlist_tracks(playlist_id):
+    """Return tracks for a user playlist."""
+    playlist = UserPlaylist.query.filter_by(
+        id=playlist_id, user_id=g.api_user.id
+    ).first()
+    if not playlist:
+        return jsonify({'error': 'Not found'}), 404
+
+    return jsonify({'playlist': {
+        'id': playlist.id,
+        'name': playlist.name,
+        'playlistType': playlist.playlist_type,
+    }, 'tracks': [{
+        'videoId': t.video_id,
+        'title': t.title,
+        'channel': t.channel or '',
+        'thumbnail': t.thumbnail or f"https://i.ytimg.com/vi/{t.video_id}/hqdefault.jpg",
+        'position': t.position,
+    } for t in playlist.tracks]})
+
+
+@mobile_api_bp.route('/save-mix', methods=['POST'])
+@token_required
+def save_mix():
+    """Save an AI-generated mix as a user playlist."""
+    data = request.get_json() or {}
+    name = data.get('name', '').strip()
+    tracks = data.get('tracks', [])
+
+    if not name:
+        return jsonify({'error': 'Playlist name required'}), 400
+    if not tracks:
+        return jsonify({'error': 'No tracks to save'}), 400
+
+    playlist = UserPlaylist(
+        user_id=g.api_user.id,
+        name=name,
+        playlist_type='mix',
+    )
+    db.session.add(playlist)
+    db.session.flush()
+
+    for i, t in enumerate(tracks):
+        track = UserPlaylistTrack(
+            playlist_id=playlist.id,
+            video_id=t.get('videoId', ''),
+            title=t.get('title', ''),
+            channel=t.get('channel', ''),
+            thumbnail=t.get('thumbnail', ''),
+            position=i,
+        )
+        db.session.add(track)
+
+    db.session.commit()
+    return jsonify({'ok': True, 'id': playlist.id})
+
+
+@mobile_api_bp.route('/delete-user-playlist/<int:playlist_id>', methods=['POST'])
+@token_required
+def delete_user_playlist(playlist_id):
+    """Delete a user playlist."""
+    playlist = UserPlaylist.query.filter_by(
+        id=playlist_id, user_id=g.api_user.id
+    ).first()
+    if not playlist:
+        return jsonify({'error': 'Not found'}), 404
+    db.session.delete(playlist)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@mobile_api_bp.route('/favorite-track', methods=['POST'])
+@token_required
+def favorite_track():
+    """Add a track to the user's Favorites playlist (auto-created)."""
+    data = request.get_json() or {}
+    video_id = data.get('videoId', '').strip()
+    title = data.get('title', '').strip()
+    if not video_id or not title:
+        return jsonify({'error': 'Track info required'}), 400
+
+    # Get or create the Favorites playlist
+    fav = UserPlaylist.query.filter_by(
+        user_id=g.api_user.id, playlist_type='favorites'
+    ).first()
+    if not fav:
+        fav = UserPlaylist(user_id=g.api_user.id, name='Favorites', playlist_type='favorites')
+        db.session.add(fav)
+        db.session.flush()
+
+    # Check for duplicate
+    existing = UserPlaylistTrack.query.filter_by(
+        playlist_id=fav.id, video_id=video_id
+    ).first()
+    if existing:
+        return jsonify({'ok': True, 'message': 'Already favorited'})
+
+    # Append to end
+    max_pos = db.session.query(db.func.max(UserPlaylistTrack.position)).filter_by(
+        playlist_id=fav.id
+    ).scalar() or -1
+
+    track = UserPlaylistTrack(
+        playlist_id=fav.id,
+        video_id=video_id,
+        title=title,
+        channel=data.get('channel', ''),
+        thumbnail=data.get('thumbnail', ''),
+        position=max_pos + 1,
+    )
+    db.session.add(track)
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
+@mobile_api_bp.route('/unfavorite-track', methods=['POST'])
+@token_required
+def unfavorite_track():
+    """Remove a track from the user's Favorites playlist."""
+    data = request.get_json() or {}
+    video_id = data.get('videoId', '').strip()
+    if not video_id:
+        return jsonify({'error': 'videoId required'}), 400
+
+    fav = UserPlaylist.query.filter_by(
+        user_id=g.api_user.id, playlist_type='favorites'
+    ).first()
+    if not fav:
+        return jsonify({'ok': True})
+
+    track = UserPlaylistTrack.query.filter_by(
+        playlist_id=fav.id, video_id=video_id
+    ).first()
+    if track:
+        db.session.delete(track)
+        db.session.commit()
+    return jsonify({'ok': True})
+
+
+@mobile_api_bp.route('/is-favorited')
+@token_required
+def is_favorited():
+    """Check if a track is in the user's Favorites."""
+    video_id = request.args.get('videoId', '').strip()
+    if not video_id:
+        return jsonify({'favorited': False})
+
+    fav = UserPlaylist.query.filter_by(
+        user_id=g.api_user.id, playlist_type='favorites'
+    ).first()
+    if not fav:
+        return jsonify({'favorited': False})
+
+    exists = UserPlaylistTrack.query.filter_by(
+        playlist_id=fav.id, video_id=video_id
+    ).first() is not None
+    return jsonify({'favorited': exists})
 
 
 def _ai_generate_song_list(provider, api_key, user_prompt):

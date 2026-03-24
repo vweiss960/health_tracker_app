@@ -28,20 +28,39 @@
         android:background="@color/music_card"
         android:layout_marginBottom="24dp" />
 
-    <!-- Track info -->
-    <TextView
-        android:id="@+id/tvTitle"
+    <!-- Track info + favorite -->
+    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Not Playing"
-        android:textColor="@color/music_text_primary"
-        android:textSize="22sp"
-        android:textStyle="bold"
-        android:singleLine="true"
-        android:ellipsize="marquee"
-        android:marqueeRepeatLimit="marquee_forever"
-        android:focusable="true"
-        android:focusableInTouchMode="true" />
+        android:orientation="horizontal"
+        android:gravity="center_vertical">
+
+        <TextView
+            android:id="@+id/tvTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Not Playing"
+            android:textColor="@color/music_text_primary"
+            android:textSize="22sp"
+            android:textStyle="bold"
+            android:singleLine="true"
+            android:ellipsize="marquee"
+            android:marqueeRepeatLimit="marquee_forever"
+            android:focusable="true"
+            android:focusableInTouchMode="true" />
+
+        <ImageButton
+            android:id="@+id/btnFavorite"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/btn_star_big_off"
+            android:tint="@color/music_text_secondary"
+            android:contentDescription="Favorite"
+            android:scaleType="fitCenter"
+            android:padding="8dp" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/tvArtist"

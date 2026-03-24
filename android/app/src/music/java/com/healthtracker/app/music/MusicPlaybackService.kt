@@ -3,6 +3,7 @@ package com.healthtracker.app.music
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.util.Log
@@ -27,6 +28,7 @@ class MusicPlaybackService : MediaSessionService() {
         const val CHANNEL_ID = "music_playback"
         const val NOTIFICATION_ID = 1001
         const val TAG = "MusicPlayback"
+        const val NOW_PLAYING_PREFS = "now_playing"
 
         const val ACTION_LOAD_TRACKS = "com.healthtracker.app.music.LOAD_TRACKS"
         const val ACTION_TOGGLE_SHUFFLE = "com.healthtracker.app.music.TOGGLE_SHUFFLE"
@@ -67,6 +69,15 @@ class MusicPlaybackService : MediaSessionService() {
 
         player.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
+                if (playbackState == Player.STATE_READY) {
+                    // Store the actual duration once the player has it
+                    val durationMs = player.duration
+                    if (durationMs > 0 && durationMs != C.TIME_UNSET) {
+                        getNowPlayingPrefs().edit()
+                            .putLong("duration_ms", durationMs)
+                            .apply()
+                    }
+                }
                 if (playbackState == Player.STATE_ENDED) {
                     consecutiveErrors = 0
                     playNext()
@@ -158,7 +169,7 @@ class MusicPlaybackService : MediaSessionService() {
             )
 
             val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("GritBoard Music")
+                .setContentTitle("GRITBOARD music")
                 .setContentText("Loading...")
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setContentIntent(contentIntent)
@@ -197,12 +208,25 @@ class MusicPlaybackService : MediaSessionService() {
                     currentStreamUrl = stream.url
                     consecutiveErrors = 0
 
+                    val title = stream.title.ifEmpty { track.title }
+                    val artist = stream.channel.ifEmpty { track.channel }
+
+                    // Save now-playing info to SharedPreferences so NowPlayingActivity can read it
+                    getNowPlayingPrefs().edit()
+                        .putString("video_id", track.videoId)
+                        .putString("title", title)
+                        .putString("artist", artist)
+                        .putLong("duration_ms", stream.duration.toLong() * 1000)
+                        .putLong("started_at", System.currentTimeMillis())
+                        .apply()
+
                     val metadata = MediaMetadata.Builder()
-                        .setTitle(stream.title.ifEmpty { track.title })
-                        .setArtist(stream.channel.ifEmpty { track.channel })
+                        .setTitle(title)
+                        .setArtist(artist)
                         .build()
 
                     val mediaItem = MediaItem.Builder()
+                        .setMediaId(track.videoId)
                         .setUri(stream.url)
                         .setMediaMetadata(metadata)
                         .build()
@@ -271,6 +295,9 @@ class MusicPlaybackService : MediaSessionService() {
         if (nextPos >= queueManager.trackCount) return null
         return queueManager.getAllTracks().getOrNull(nextPos)
     }
+
+    private fun getNowPlayingPrefs() =
+        getSharedPreferences(NOW_PLAYING_PREFS, Context.MODE_PRIVATE)
 
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

@@ -36,6 +36,13 @@ data class PlaylistResult(
     val query: String = "",
 )
 
+data class UserPlaylistInfo(
+    val id: Int,
+    val name: String,
+    val playlistType: String,
+    val trackCount: Int,
+)
+
 data class AuthResult(
     val token: String,
     val userId: Int,

@@ -196,6 +196,86 @@ class ApiClient(private val context: Context) {
         client.newCall(request).execute().isSuccessful
     }
 
+    suspend fun getUserPlaylists(): List<UserPlaylistInfo> = withContext(Dispatchers.IO) {
+        val request = authRequest(apiUrl("/user-playlists")).build()
+        val response = client.newCall(request).execute()
+        checkAuth(response)
+        val json = response.body?.string() ?: return@withContext emptyList()
+        val obj = JsonParser.parseString(json).asJsonObject
+        val arr = obj.getAsJsonArray("playlists") ?: return@withContext emptyList()
+
+        arr.map { el ->
+            val o = el.asJsonObject
+            UserPlaylistInfo(
+                id = o.get("id").asInt,
+                name = o.get("name").asString,
+                playlistType = o.get("playlistType")?.asString ?: "mix",
+                trackCount = o.get("trackCount")?.asInt ?: 0,
+            )
+        }
+    }
+
+    suspend fun getUserPlaylistTracks(playlistId: Int): List<Track> = withContext(Dispatchers.IO) {
+        val request = authRequest(apiUrl("/user-playlist-tracks/$playlistId")).build()
+        val response = client.newCall(request).execute()
+        checkAuth(response)
+        val json = response.body?.string() ?: return@withContext emptyList()
+        val obj = JsonParser.parseString(json).asJsonObject
+        val arr = obj.getAsJsonArray("tracks") ?: return@withContext emptyList()
+
+        arr.map { el ->
+            val o = el.asJsonObject
+            Track(
+                videoId = o.get("videoId").asString,
+                title = o.get("title").asString,
+                channel = o.get("channel")?.asString ?: "",
+                position = o.get("position")?.asInt ?: 0,
+                thumbnail = o.get("thumbnail")?.asString ?: "",
+            )
+        }
+    }
+
+    suspend fun saveMix(name: String, tracks: List<Track>): Boolean = withContext(Dispatchers.IO) {
+        val trackMaps = tracks.map { mapOf(
+            "videoId" to it.videoId, "title" to it.title,
+            "channel" to it.channel, "thumbnail" to it.thumbnail,
+        )}
+        val body = gson.toJson(mapOf("name" to name, "tracks" to trackMaps)).toRequestBody(jsonType)
+        val request = authRequest(apiUrl("/save-mix")).post(body).build()
+        client.newCall(request).execute().isSuccessful
+    }
+
+    suspend fun deleteUserPlaylist(playlistId: Int): Boolean = withContext(Dispatchers.IO) {
+        val body = "{}".toRequestBody(jsonType)
+        val request = authRequest(apiUrl("/delete-user-playlist/$playlistId")).post(body).build()
+        client.newCall(request).execute().isSuccessful
+    }
+
+    suspend fun favoriteTrack(track: Track): Boolean = withContext(Dispatchers.IO) {
+        val body = gson.toJson(mapOf(
+            "videoId" to track.videoId, "title" to track.title,
+            "channel" to track.channel, "thumbnail" to track.thumbnail,
+        )).toRequestBody(jsonType)
+        val request = authRequest(apiUrl("/favorite-track")).post(body).build()
+        client.newCall(request).execute().isSuccessful
+    }
+
+    suspend fun unfavoriteTrack(videoId: String): Boolean = withContext(Dispatchers.IO) {
+        val body = gson.toJson(mapOf("videoId" to videoId)).toRequestBody(jsonType)
+        val request = authRequest(apiUrl("/unfavorite-track")).post(body).build()
+        client.newCall(request).execute().isSuccessful
+    }
+
+    suspend fun isFavorited(videoId: String): Boolean = withContext(Dispatchers.IO) {
+        val request = authRequest(apiUrl("/is-favorited?videoId=$videoId")).build()
+        val response = client.newCall(request).execute()
+        checkAuth(response)
+        if (!response.isSuccessful) return@withContext false
+        val json = response.body?.string() ?: return@withContext false
+        val obj = JsonParser.parseString(json).asJsonObject
+        obj.get("favorited")?.asBoolean ?: false
+    }
+
     private fun checkAuth(response: okhttp3.Response) {
         if (response.code == 401) {
             token = null
