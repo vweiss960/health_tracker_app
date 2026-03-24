@@ -76,48 +76,49 @@
         </div>
         <form method="POST" action="{{ url_for('training.add_training') }}">
             <input type="hidden" name="date" value="{{ view_date.isoformat() }}">
-            <div class="form-group" style="margin-bottom: 0.6rem;">
-                <label>Exercise Name</label>
-                <input type="text" name="exercise_name" placeholder="e.g. Bench Press, Squats, Running" required>
-            </div>
-            <div class="form-group" style="margin-bottom: 0.6rem;">
-                <label>Category</label>
-                <select name="category">
-                    <option value="chest">Chest</option>
-                    <option value="back">Back</option>
-                    <option value="legs">Legs</option>
-                    <option value="shoulders">Shoulders</option>
-                    <option value="arms">Arms</option>
-                    <option value="core">Core</option>
-                    <option value="cardio">Cardio</option>
-                    <option value="other">Other</option>
-                </select>
-            </div>
-            <div class="single-item-macros">
+            <div class="modal-form-section">
                 <div class="form-group">
-                    <label>Sets</label>
-                    <input type="number" name="sets" placeholder="e.g. 3">
+                    <label>Exercise Name</label>
+                    <input type="text" name="exercise_name" placeholder="e.g. Bench Press, Squats, Running" required>
                 </div>
                 <div class="form-group">
-                    <label>Reps</label>
-                    <input type="number" name="reps" placeholder="e.g. 10">
-                </div>
-                <div class="form-group">
-                    <label>Weight</label>
-                    <input type="number" step="0.5" name="weight_used" placeholder="lbs/kg">
-                </div>
-                <div class="form-group">
-                    <label>Duration (min)</label>
-                    <input type="number" step="1" name="duration_minutes" placeholder="min">
-                </div>
-                <div class="form-group">
-                    <label>Calories</label>
-                    <input type="number" step="1" name="calories_burned" placeholder="kcal">
+                    <label>Category</label>
+                    <select name="category">
+                        <option value="chest">Chest</option>
+                        <option value="back">Back</option>
+                        <option value="legs">Legs</option>
+                        <option value="shoulders">Shoulders</option>
+                        <option value="arms">Arms</option>
+                        <option value="core">Core</option>
+                        <option value="cardio">Cardio</option>
+                        <option value="other">Other</option>
+                    </select>
                 </div>
             </div>
-            <div class="form-group" style="margin-top: 0.6rem;">
-                <label>Notes</label>
-                <input type="text" name="notes" placeholder="Optional notes">
+            <div class="modal-form-section">
+                <label class="modal-section-label">Sets &amp; Reps</label>
+                <div class="form-group">
+                    <label>Number of Sets</label>
+                    <input type="number" name="sets" id="addSetsInput" placeholder="e.g. 3" min="1" max="20" oninput="buildSetRows('addSetRows', this.value)">
+                </div>
+                <div id="addSetRows" class="set-rows"></div>
+            </div>
+            <div class="modal-form-section">
+                <label class="modal-section-label">Other Details</label>
+                <div class="single-item-macros">
+                    <div class="form-group">
+                        <label>Duration (min)</label>
+                        <input type="number" step="1" name="duration_minutes" placeholder="min">
+                    </div>
+                    <div class="form-group">
+                        <label>Calories</label>
+                        <input type="number" step="1" name="calories_burned" placeholder="kcal">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <input type="text" name="notes" placeholder="Optional notes">
+                </div>
             </div>
             <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
                 <button type="submit" class="btn btn-primary" style="flex: 1;">Add Exercise</button>
@@ -127,33 +128,91 @@
     </div>
 </div>
 
-<div id="workout-log">
-{% if entries %}
-<div class="card">
-    <div class="table-wrap">
-    <table>
-        <thead><tr><th>Exercise</th><th>Category</th><th>Sets</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Cal</th><th></th></tr></thead>
-        <tbody>
-        {% for e in entries %}
-        <tr data-entry-id="{{ e.id }}">
-            <td class="editable" data-field="exercise_name" data-type="text">{{ e.exercise_name }}</td>
-            <td class="editable" data-field="category" data-type="select">{{ e.category or '-' }}</td>
-            <td class="editable" data-field="sets" data-type="number">{{ e.sets or '-' }}</td>
-            <td class="editable" data-field="reps" data-type="number">{{ e.reps or '-' }}</td>
-            <td class="editable" data-field="weight_used" data-type="number" data-step="0.5">{{ e.weight_used or '-' }}</td>
-            <td class="editable" data-field="duration_minutes" data-type="number">{{ e.duration_minutes or '-' }}</td>
-            <td class="editable" data-field="calories_burned" data-type="number">{{ e.calories_burned or '-' }}</td>
-            <td>
-                <form method="POST" action="{{ url_for('training.delete_training', entry_id=e.id) }}" style="display:inline;">
-                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')">X</button>
-                </form>
-            </td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
+<!-- Edit Exercise Modal -->
+<div id="editExerciseModal" class="modal-overlay" style="display:none;">
+    <div class="modal-content card single-item-modal">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <h2 style="margin-bottom: 0;" id="editExerciseName">Edit Exercise</h2>
+                <button type="button" class="btn btn-sm history-toggle-btn" id="historyToggleBtn" onclick="toggleHistory()" title="Exercise history">&#x1F4CA;</button>
+            </div>
+            <button type="button" class="btn btn-sm" onclick="document.getElementById('editExerciseModal').style.display='none'" style="background: var(--border); line-height: 1; padding: 0.3rem 0.6rem;">&times;</button>
+        </div>
+
+        <!-- History Panel (hidden by default) -->
+        <div id="historyPanel" class="history-panel" style="display:none;"></div>
+
+        <!-- Edit Form -->
+        <div id="editFormPanel">
+            <input type="hidden" id="editEntryId">
+            <div class="modal-form-section">
+                <label class="modal-section-label">Sets &amp; Reps</label>
+                <div class="form-group">
+                    <label>Number of Sets</label>
+                    <input type="number" id="editSetsInput" min="1" max="20" oninput="buildSetRows('editSetRows', this.value, editCurrentSetData)">
+                </div>
+                <div id="editSetRows" class="set-rows"></div>
+            </div>
+            <div class="modal-form-section">
+                <label class="modal-section-label">Other Details</label>
+                <div class="single-item-macros">
+                    <div class="form-group">
+                        <label>Duration (min)</label>
+                        <input type="number" id="editDuration" step="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Calories</label>
+                        <input type="number" id="editCalories" step="1">
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Notes</label>
+                    <input type="text" id="editNotes" placeholder="Optional notes">
+                </div>
+            </div>
+            <div style="margin-top: 1rem; display: flex; gap: 0.5rem;">
+                <button type="button" class="btn btn-primary" style="flex: 1;" onclick="saveEditExercise()">Save</button>
+                <button type="button" class="btn" onclick="document.getElementById('editExerciseModal').style.display='none'" style="background: var(--border);">Cancel</button>
+            </div>
+        </div>
     </div>
 </div>
+
+<div id="workout-log">
+{% if entries %}
+    {% for e in entries %}
+    <div class="exercise-log-item" data-entry-id="{{ e.id }}" onclick="openEditExercise({{ e.id }})">
+        <div class="exercise-log-header">
+            <div>
+                <strong>{{ e.exercise_name }}</strong>
+                {% if e.category %}<span class="plan-tag" style="margin-left: 0.4rem;">{{ e.category }}</span>{% endif %}
+                {% if e.duration_minutes or e.calories_burned %}
+                <div class="exercise-log-meta" style="margin-top: 0.2rem;">
+                    {% if e.duration_minutes %}<span class="exercise-log-stat">{{ e.duration_minutes | int }} min</span>{% endif %}
+                    {% if e.calories_burned %}<span class="exercise-log-stat">{{ e.calories_burned | int }} cal</span>{% endif %}
+                </div>
+                {% endif %}
+            </div>
+            <div class="exercise-log-delete" onclick="event.stopPropagation();">
+                <form method="POST" action="{{ url_for('training.delete_training', entry_id=e.id) }}" style="display:inline;">
+                    <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('Delete?')" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">X</button>
+                </form>
+            </div>
+        </div>
+        {% if e.parsed_set_data %}
+        <div class="exercise-set-summary">
+            {% for s in e.parsed_set_data %}
+            <span class="set-pill">Set {{ s.set_number }}{% if s.reps %}: {{ s.reps }} reps{% endif %}{% if s.weight %} @ {{ s.weight }}{% endif %}</span>
+            {% endfor %}
+        </div>
+        {% elif e.sets %}
+        <div class="exercise-set-summary">
+            <span class="set-pill">{{ e.sets }} sets{% if e.reps %} x {{ e.reps }} reps{% endif %}{% if e.weight_used %} @ {{ e.weight_used }}{% endif %}</span>
+        </div>
+        {% endif %}
+        {% if e.notes %}<div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.3rem;">{{ e.notes }}</div>{% endif %}
+    </div>
+    {% endfor %}
 {% endif %}
 </div>
 {% endblock %}
@@ -202,14 +261,304 @@ function toggleExercise(el) {
     });
 }
 
+// ── Dynamic per-set rows ──
+function buildSetRows(containerId, numSets, existingData) {
+    var container = document.getElementById(containerId);
+    if (!container) return;
+    numSets = parseInt(numSets) || 0;
+    if (numSets < 1 || numSets > 20) { container.innerHTML = ''; return; }
+
+    var html = '<div class="set-rows-header"><span>Reps</span><span>Weight</span></div>';
+    for (var i = 1; i <= numSets; i++) {
+        var reps = '', weight = '';
+        if (existingData) {
+            var sd = existingData.find(function(s) { return s.set_number === i; });
+            if (sd) { reps = sd.reps || ''; weight = sd.weight || ''; }
+        }
+        html += '<div class="set-row">' +
+            '<span class="set-row-label">Set ' + i + '</span>' +
+            '<input type="number" name="set_reps_' + i + '" placeholder="reps" value="' + reps + '" min="0">' +
+            '<input type="number" name="set_weight_' + i + '" placeholder="weight" value="' + weight + '" step="0.5" min="0">' +
+            '</div>';
+    }
+    container.innerHTML = html;
+}
+
+// ── Edit exercise modal ──
+var editCurrentSetData = null;
+var editCurrentExerciseName = '';
+var historyLoaded = false;
+
+function openEditExercise(entryId) {
+    // Reset history state
+    historyLoaded = false;
+    document.getElementById('historyPanel').style.display = 'none';
+    document.getElementById('historyPanel').innerHTML = '';
+    document.getElementById('editFormPanel').style.display = '';
+    document.getElementById('historyToggleBtn').classList.remove('active');
+
+    fetch('/training/entry/' + entryId)
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            document.getElementById('editEntryId').value = data.id;
+            document.getElementById('editExerciseName').textContent = data.exercise_name;
+            document.getElementById('editSetsInput').value = data.sets || '';
+            document.getElementById('editDuration').value = data.duration_minutes || '';
+            document.getElementById('editCalories').value = data.calories_burned || '';
+            document.getElementById('editNotes').value = data.notes || '';
+
+            editCurrentExerciseName = data.exercise_name;
+            editCurrentSetData = data.set_data || null;
+            buildSetRows('editSetRows', data.sets || 0, editCurrentSetData);
+
+            document.getElementById('editExerciseModal').style.display = 'flex';
+        });
+}
+
+function saveEditExercise() {
+    var entryId = document.getElementById('editEntryId').value;
+    var numSets = parseInt(document.getElementById('editSetsInput').value) || 0;
+
+    var setData = [];
+    for (var i = 1; i <= numSets; i++) {
+        var container = document.getElementById('editSetRows');
+        var repsInput = container.querySelector('input[name="set_reps_' + i + '"]');
+        var weightInput = container.querySelector('input[name="set_weight_' + i + '"]');
+        setData.push({
+            set_number: i,
+            reps: repsInput ? (parseInt(repsInput.value) || null) : null,
+            weight: weightInput ? (parseFloat(weightInput.value) || null) : null,
+        });
+    }
+
+    fetch('/training/update-sets/' + entryId, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            sets: numSets || null,
+            set_data: setData.length ? setData : null,
+            duration_minutes: parseFloat(document.getElementById('editDuration').value) || null,
+            calories_burned: parseFloat(document.getElementById('editCalories').value) || null,
+            notes: document.getElementById('editNotes').value,
+        })
+    }).then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.ok) {
+            document.getElementById('editExerciseModal').style.display = 'none';
+            refreshLog();
+        }
+    });
+}
+
+// ── Exercise history ──
+function toggleHistory() {
+    var panel = document.getElementById('historyPanel');
+    var form = document.getElementById('editFormPanel');
+    var btn = document.getElementById('historyToggleBtn');
+    var showing = panel.style.display !== 'none';
+
+    if (showing) {
+        panel.style.display = 'none';
+        form.style.display = '';
+        btn.classList.remove('active');
+    } else {
+        form.style.display = 'none';
+        panel.style.display = '';
+        btn.classList.add('active');
+        if (!historyLoaded) {
+            panel.innerHTML = '<div style="text-align:center; padding:1rem; color:var(--text-muted);">Loading...</div>';
+            loadHistory(editCurrentExerciseName);
+        }
+    }
+}
+
+function loadHistory(name) {
+    fetch('/training/exercise-history?name=' + encodeURIComponent(name))
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            historyLoaded = true;
+            renderHistory(data);
+        })
+        .catch(function() {
+            document.getElementById('historyPanel').innerHTML =
+                '<div style="text-align:center; padding:1rem; color:var(--text-muted);">Could not load history.</div>';
+        });
+}
+
+function renderHistory(data) {
+    var panel = document.getElementById('historyPanel');
+    if (!data.found) {
+        panel.innerHTML = '<div style="text-align:center; padding:1.5rem; color:var(--text-muted);">No history for this exercise yet.</div>';
+        return;
+    }
+
+    var html = '';
+
+    // ── Last Performed ──
+    html += '<div class="history-section">';
+    html += '<div class="modal-section-label">Last Performed</div>';
+    html += '<div class="history-last-date">' + formatDate(data.last_performed) + '</div>';
+    if (data.last_set_data && data.last_set_data.length) {
+        html += '<div class="exercise-set-summary" style="margin-top:0.4rem;">';
+        data.last_set_data.forEach(function(s) {
+            html += '<span class="set-pill">Set ' + s.set_number;
+            if (s.reps) html += ': ' + s.reps + ' reps';
+            if (s.weight) html += ' @ ' + s.weight;
+            html += '</span>';
+        });
+        html += '</div>';
+    } else if (data.last_sets) {
+        html += '<div class="exercise-set-summary" style="margin-top:0.4rem;">';
+        html += '<span class="set-pill">' + data.last_sets + ' sets';
+        if (data.last_reps) html += ' x ' + data.last_reps + ' reps';
+        if (data.last_weight) html += ' @ ' + data.last_weight;
+        html += '</span></div>';
+    }
+    html += '</div>';
+
+    // ── Summary Stats ──
+    html += '<div class="history-section">';
+    html += '<div class="modal-section-label">Last 3 Months</div>';
+    html += '<div class="history-stats">';
+    html += '<div class="history-stat-box"><div class="history-stat-value">' + data.total_sessions + '</div><div class="history-stat-label">Sessions</div></div>';
+    if (data.max_weight_ever) {
+        html += '<div class="history-stat-box"><div class="history-stat-value">' + data.max_weight_ever + '</div><div class="history-stat-label">Max Weight</div></div>';
+    }
+    html += '</div>';
+    html += '</div>';
+
+    // ── Progress Chart (weight over time) ──
+    var weightPoints = data.timeline.filter(function(t) { return t.max_weight; });
+    if (weightPoints.length >= 2) {
+        html += '<div class="history-section">';
+        html += '<div class="modal-section-label">Weight Progress</div>';
+        html += '<canvas id="historyChart" width="400" height="160" style="width:100%; height:auto;"></canvas>';
+        html += '</div>';
+    }
+
+    // ── Session Log ──
+    html += '<div class="history-section">';
+    html += '<div class="modal-section-label">Session Log</div>';
+    data.timeline.slice().reverse().forEach(function(t) {
+        html += '<div class="history-log-row">';
+        html += '<span class="history-log-date">' + formatDateShort(t.date) + '</span>';
+        var detail = '';
+        if (t.set_details) {
+            detail = t.set_details.map(function(s) {
+                var parts = [];
+                if (s.reps) parts.push(s.reps + 'r');
+                if (s.weight) parts.push(s.weight);
+                return parts.join('@');
+            }).join(', ');
+        } else {
+            var parts = [];
+            if (t.sets) parts.push(t.sets + 's');
+            if (t.reps) parts.push(t.reps + 'r');
+            if (t.weight) parts.push(t.weight);
+            detail = parts.join(' x ');
+        }
+        html += '<span class="history-log-detail">' + (detail || '-') + '</span>';
+        html += '</div>';
+    });
+    html += '</div>';
+
+    panel.innerHTML = html;
+
+    // Draw chart if we have data
+    if (weightPoints.length >= 2) {
+        drawHistoryChart(weightPoints);
+    }
+}
+
+function formatDate(iso) {
+    var d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' });
+}
+function formatDateShort(iso) {
+    var d = new Date(iso + 'T00:00:00');
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+function drawHistoryChart(points) {
+    var canvas = document.getElementById('historyChart');
+    if (!canvas) return;
+    var ctx = canvas.getContext('2d');
+    var dpr = window.devicePixelRatio || 1;
+    var rect = canvas.getBoundingClientRect();
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    ctx.scale(dpr, dpr);
+    var W = rect.width, H = rect.height;
+    var pad = { top: 15, right: 10, bottom: 25, left: 35 };
+
+    var weights = points.map(function(p) { return p.max_weight; });
+    var minW = Math.min.apply(null, weights);
+    var maxW = Math.max.apply(null, weights);
+    if (minW === maxW) { minW -= 5; maxW += 5; }
+    var rangeW = maxW - minW;
+
+    function x(i) { return pad.left + (i / (points.length - 1)) * (W - pad.left - pad.right); }
+    function y(v) { return pad.top + (1 - (v - minW) / rangeW) * (H - pad.top - pad.bottom); }
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    for (var g = 0; g <= 3; g++) {
+        var gy = pad.top + (g / 3) * (H - pad.top - pad.bottom);
+        ctx.beginPath(); ctx.moveTo(pad.left, gy); ctx.lineTo(W - pad.right, gy); ctx.stroke();
+        var val = maxW - (g / 3) * rangeW;
+        ctx.fillStyle = 'rgba(255,255,255,0.35)';
+        ctx.font = '10px sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText(Math.round(val), pad.left - 5, gy + 3);
+    }
+
+    // Date labels
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.font = '10px sans-serif';
+    ctx.textAlign = 'center';
+    if (points.length <= 8) {
+        points.forEach(function(p, i) {
+            ctx.fillText(formatDateShort(p.date), x(i), H - 5);
+        });
+    } else {
+        [0, Math.floor(points.length / 2), points.length - 1].forEach(function(i) {
+            ctx.fillText(formatDateShort(points[i].date), x(i), H - 5);
+        });
+    }
+
+    // Line
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#e63946';
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    points.forEach(function(p, i) {
+        var px = x(i), py = y(p.max_weight);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+
+    // Dots
+    ctx.fillStyle = ctx.strokeStyle;
+    points.forEach(function(p, i) {
+        ctx.beginPath();
+        ctx.arc(x(i), y(p.max_weight), 3, 0, Math.PI * 2);
+        ctx.fill();
+    });
+}
+
 function refreshLog() {
     fetch(window.location.href).then(function(r) { return r.text(); }).then(function(html) {
         var parser = new DOMParser();
         var doc = parser.parseFromString(html, 'text/html');
-        // Replace the workout table area
         var newContent = doc.querySelector('#workout-log');
         var oldContent = document.querySelector('#workout-log');
         if (newContent && oldContent) oldContent.innerHTML = newContent.innerHTML;
+        // Also refresh plan exercise done states
+        var newPlan = doc.querySelector('.plan-week');
+        var oldPlan = document.querySelector('.plan-week');
+        if (newPlan && oldPlan) oldPlan.innerHTML = newPlan.innerHTML;
     });
 }
 
@@ -217,65 +566,6 @@ function refreshLog() {
 document.querySelectorAll('.modal-overlay').forEach(function(m) {
     m.addEventListener('click', function(e) {
         if (e.target === this) this.style.display = 'none';
-    });
-});
-
-// Inline editing for exercise log
-var CATEGORIES = ['chest','back','legs','shoulders','arms','core','cardio','other'];
-
-document.addEventListener('click', function(e) {
-    var cell = e.target.closest('td.editable');
-    if (!cell || cell.querySelector('input, select')) return;
-
-    var row = cell.closest('tr');
-    var entryId = row.dataset.entryId;
-    var field = cell.dataset.field;
-    var type = cell.dataset.type;
-    var current = cell.textContent.trim();
-    if (current === '-') current = '';
-
-    var input;
-    if (type === 'select' && field === 'category') {
-        input = document.createElement('select');
-        CATEGORIES.forEach(function(cat) {
-            var opt = document.createElement('option');
-            opt.value = cat;
-            opt.textContent = cat.charAt(0).toUpperCase() + cat.slice(1);
-            if (cat === current.toLowerCase()) opt.selected = true;
-            input.appendChild(opt);
-        });
-    } else {
-        input = document.createElement('input');
-        input.type = type === 'number' ? 'number' : 'text';
-        if (cell.dataset.step) input.step = cell.dataset.step;
-        input.value = current;
-    }
-
-    input.className = 'inline-edit';
-    cell.textContent = '';
-    cell.appendChild(input);
-    input.focus();
-    if (input.select) input.select();
-
-    function save() {
-        var val = input.value.trim();
-        var displayVal = val || '-';
-
-        fetch('/training/update/' + entryId, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({field: field, value: val})
-        }).then(function(r) { return r.json(); }).then(function(data) {
-            cell.textContent = data.value || '-';
-        }).catch(function() {
-            cell.textContent = displayVal;
-        });
-    }
-
-    input.addEventListener('blur', save);
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Enter') { e.preventDefault(); input.blur(); }
-        if (e.key === 'Escape') { cell.textContent = current || '-'; }
     });
 });
 

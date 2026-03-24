@@ -390,6 +390,32 @@ class SharedItem(db.Model):
     recipient = db.relationship('User', foreign_keys=[recipient_id], lazy=True)
 
 
+class UserPlaylist(db.Model):
+    """Custom user playlists — saved AI mixes and favorites."""
+    __tablename__ = 'user_playlists'
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    name = db.Column(db.String(300), nullable=False)
+    playlist_type = db.Column(db.String(20), default='mix')  # 'mix' or 'favorites'
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    tracks = db.relationship('UserPlaylistTrack', backref='playlist', lazy=True, cascade='all, delete-orphan',
+                             order_by='UserPlaylistTrack.position')
+    user = db.relationship('User', backref=db.backref('user_playlists', lazy=True, cascade='all, delete-orphan'))
+
+
+class UserPlaylistTrack(db.Model):
+    """Individual tracks within a user playlist."""
+    __tablename__ = 'user_playlist_tracks'
+    id = db.Column(db.Integer, primary_key=True)
+    playlist_id = db.Column(db.Integer, db.ForeignKey('user_playlists.id'), nullable=False)
+    video_id = db.Column(db.String(20), nullable=False)
+    title = db.Column(db.String(300), nullable=False)
+    channel = db.Column(db.String(200))
+    thumbnail = db.Column(db.String(500))
+    position = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+
 class TrainingEntry(db.Model):
     __tablename__ = 'training_entries'
     id = db.Column(db.Integer, primary_key=True)
@@ -402,5 +428,16 @@ class TrainingEntry(db.Model):
     weight_used = db.Column(db.Float)
     duration_minutes = db.Column(db.Float)
     calories_burned = db.Column(db.Float)
+    set_data = db.Column(db.Text)  # JSON: [{"set_number":1,"reps":10,"weight":135}, ...]
     notes = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+
+    @property
+    def parsed_set_data(self):
+        if self.set_data:
+            import json
+            try:
+                return json.loads(self.set_data)
+            except (ValueError, TypeError):
+                return None
+        return None

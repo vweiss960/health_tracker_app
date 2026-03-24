@@ -1,3 +1,4 @@
+import json
 from flask import Blueprint, render_template, request, jsonify, redirect, url_for
 from flask_login import login_required, current_user
 from models import db, TrainingEntry, TrainingPlan
@@ -55,16 +56,20 @@ def add_training():
     date_str = request.form.get('date')
     entry_date = datetime.strptime(date_str, '%Y-%m-%d').date() if date_str else user_today(current_user.tz)
 
+    num_sets = _int_or_none(request.form.get('sets'))
+    set_data = _build_set_data(num_sets, request.form)
+
     entry = TrainingEntry(
         user_id=current_user.id,
         date=entry_date,
         exercise_name=request.form.get('exercise_name', '').strip(),
         category=request.form.get('category', ''),
-        sets=_int_or_none(request.form.get('sets')),
+        sets=num_sets,
         reps=_int_or_none(request.form.get('reps')),
         weight_used=_float_or_none(request.form.get('weight_used')),
         duration_minutes=_float_or_none(request.form.get('duration_minutes')),
         calories_burned=_float_or_none(request.form.get('calories_burned')),
+        set_data=json.dumps(set_data) if set_data else None,
         notes=request.form.get('notes', '').strip() or None,
     )
     db.session.add(entry)
@@ -171,6 +176,132 @@ def update_training(entry_id):
     return jsonify({'ok': True, 'value': str(getattr(entry, field) or '')})
 
 
+@training_bp.route('/exercise-history')
+@login_required
+def exercise_history():
+    """Return history for a specific exercise (last 3 months)."""
+    from datetime import timedelta
+    name = request.args.get('name', '').strip()
+    if not name:
+        return jsonify({'error': 'No exercise name'}), 400
+
+    cutoff = user_today(current_user.tz) - timedelta(days=90)
+    entries = TrainingEntry.query.filter(
+        TrainingEntry.user_id == current_user.id,
+        db.func.lower(TrainingEntry.exercise_name) == name.lower(),
+        TrainingEntry.date >= cutoff,
+    ).order_by(TrainingEntry.date.desc()).all()
+
+    if not entries:
+        return jsonify({'found': False})
+
+    # Most recent entry (for "last time" display)
+    latest = entries[0]
+    last_set_data = json.loads(latest.set_data) if latest.set_data else None
+
+    # Build timeline for chart/progress
+    timeline = []
+    for e in reversed(entries):  # chronological order
+        entry_data = {
+            'date': e.date.isoformat(),
+            'sets': e.sets,
+            'reps': e.reps,
+            'weight': e.weight_used,
+        }
+        if e.set_data:
+            parsed = json.loads(e.set_data)
+            # Max weight across sets
+            weights = [s['weight'] for s in parsed if s.get('weight')]
+            reps_list = [s['reps'] for s in parsed if s.get('reps')]
+            entry_data['max_weight'] = max(weights) if weights else None
+            entry_data['total_reps'] = sum(reps_list) if reps_list else None
+            entry_data['set_details'] = parsed
+        else:
+            entry_data['max_weight'] = e.weight_used
+            entry_data['total_reps'] = (e.sets or 1) * (e.reps or 0) if e.reps else None
+        timeline.append(entry_data)
+
+    # Summary stats
+    all_weights = [t['max_weight'] for t in timeline if t.get('max_weight')]
+    total_sessions = len(timeline)
+
+    return jsonify({
+        'found': True,
+        'exercise_name': latest.exercise_name,
+        'last_performed': latest.date.isoformat(),
+        'last_sets': latest.sets,
+        'last_reps': latest.reps,
+        'last_weight': latest.weight_used,
+        'last_set_data': last_set_data,
+        'total_sessions': total_sessions,
+        'max_weight_ever': max(all_weights) if all_weights else None,
+        'timeline': timeline,
+    })
+
+
+@training_bp.route('/entry/<int:entry_id>', methods=['GET'])
+@login_required
+def get_entry(entry_id):
+    """Return entry details as JSON (for the edit modal)."""
+    entry = TrainingEntry.query.get_or_404(entry_id)
+    if entry.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+    return jsonify({
+        'id': entry.id,
+        'exercise_name': entry.exercise_name,
+        'category': entry.category,
+        'sets': entry.sets,
+        'reps': entry.reps,
+        'weight_used': entry.weight_used,
+        'duration_minutes': entry.duration_minutes,
+        'calories_burned': entry.calories_burned,
+        'set_data': json.loads(entry.set_data) if entry.set_data else None,
+        'notes': entry.notes,
+    })
+
+
+@training_bp.route('/update-sets/<int:entry_id>', methods=['POST'])
+@login_required
+def update_sets(entry_id):
+    """Update the set count and per-set data for an entry."""
+    entry = TrainingEntry.query.get_or_404(entry_id)
+    if entry.user_id != current_user.id:
+        return jsonify({'error': 'Unauthorized'}), 403
+
+    data = request.get_json() or {}
+    num_sets = data.get('sets')
+    set_data = data.get('set_data')  # list of {set_number, reps, weight}
+
+    if num_sets is not None:
+        entry.sets = int(num_sets) if num_sets else None
+
+    if set_data is not None:
+        # Validate and clean set_data
+        cleaned = []
+        for s in set_data:
+            cleaned.append({
+                'set_number': int(s.get('set_number', 0)),
+                'reps': int(s['reps']) if s.get('reps') not in (None, '', 0) else None,
+                'weight': float(s['weight']) if s.get('weight') not in (None, '', 0) else None,
+            })
+        entry.set_data = json.dumps(cleaned) if cleaned else None
+
+    # Also update summary reps/weight from first set for backward compat
+    if data.get('reps') is not None:
+        entry.reps = int(data['reps']) if data['reps'] else None
+    if data.get('weight_used') is not None:
+        entry.weight_used = float(data['weight_used']) if data['weight_used'] else None
+    if data.get('duration_minutes') is not None:
+        entry.duration_minutes = float(data['duration_minutes']) if data['duration_minutes'] else None
+    if data.get('calories_burned') is not None:
+        entry.calories_burned = float(data['calories_burned']) if data['calories_burned'] else None
+    if data.get('notes') is not None:
+        entry.notes = data['notes'].strip() or None
+
+    db.session.commit()
+    return jsonify({'ok': True})
+
+
 @training_bp.route('/delete/<int:entry_id>', methods=['POST'])
 @login_required
 def delete_training(entry_id):
@@ -237,3 +368,16 @@ def _int_or_none(val):
         return int(val)
     except ValueError:
         return None
+
+
+def _build_set_data(num_sets, form):
+    """Build per-set data list from form fields like set_reps_1, set_weight_1, etc."""
+    if not num_sets or num_sets < 1:
+        return None
+    sets = []
+    for i in range(1, num_sets + 1):
+        reps = _int_or_none(form.get(f'set_reps_{i}'))
+        weight = _float_or_none(form.get(f'set_weight_{i}'))
+        if reps is not None or weight is not None:
+            sets.append({'set_number': i, 'reps': reps, 'weight': weight})
+    return sets if sets else None

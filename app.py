@@ -248,6 +248,7 @@ def _migrate_db():
         ('users', 'use_system_ai_key', 'BOOLEAN', None),
         ('users', 'motivation_text', 'TEXT', None),
         ('users', 'api_token', 'VARCHAR(64)', None),
+        ('training_entries', 'set_data', 'TEXT', None),
     ]
     for table, column, col_type, default in migrations:
         cursor.execute(f"PRAGMA table_info({table})")

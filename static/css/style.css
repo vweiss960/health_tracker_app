@@ -513,6 +513,165 @@ th { font-weight: 700; color: var(--text-muted); font-size: 0.8rem; text-transfo
 }
 .plan-exercise-tappable.done:hover { background: transparent; }
 
+/* Exercise log items (card-based) */
+.exercise-log-item {
+    padding: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 0.6rem;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+    background: var(--surface, rgba(255,255,255,0.03));
+    border-left: 3px solid var(--accent);
+}
+.exercise-log-item:last-child { margin-bottom: 0; }
+.exercise-log-item:hover { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.15); border-left-color: var(--accent); }
+.exercise-log-item:active { background: rgba(45,106,79,0.15); }
+.exercise-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+}
+.exercise-log-header > div:first-child {
+    flex: 1;
+    min-width: 0;
+}
+.exercise-log-delete {
+    flex-shrink: 0;
+    margin-left: auto;
+}
+.exercise-log-stat {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+}
+.exercise-log-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+.exercise-set-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.4rem;
+}
+.set-pill {
+    display: inline-block;
+    font-size: 0.75rem;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 4px;
+    padding: 0.2rem 0.5rem;
+    color: var(--text-muted);
+}
+
+/* History toggle button */
+.history-toggle-btn {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid var(--border);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.25rem 0.4rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+}
+.history-toggle-btn:hover { background: rgba(255,255,255,0.12); }
+.history-toggle-btn.active { background: var(--accent); border-color: var(--accent); }
+
+/* History panel */
+.history-panel {
+    overflow-y: auto;
+    max-height: 60vh;
+    -webkit-overflow-scrolling: touch;
+}
+.history-section {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    margin-bottom: 0.6rem;
+}
+.history-section:last-child { margin-bottom: 0; }
+.history-last-date {
+    font-size: 0.95rem;
+    font-weight: 600;
+}
+.history-stats {
+    display: flex;
+    gap: 0.5rem;
+}
+.history-stat-box {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.6rem;
+    text-align: center;
+}
+.history-stat-value {
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--accent);
+}
+.history-stat-label {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-top: 0.15rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+.history-log-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+    font-size: 0.85rem;
+}
+.history-log-row:last-child { border-bottom: none; }
+.history-log-date {
+    color: var(--text-muted);
+    min-width: 60px;
+}
+.history-log-detail {
+    text-align: right;
+    color: var(--text);
+}
+
+/* Dynamic per-set rows */
+.set-rows { margin-top: 0.5rem; }
+.set-rows-header {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+    padding-left: 42px;
+}
+.set-rows-header span {
+    flex: 1;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+}
+.set-row {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+}
+.set-row-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    min-width: 42px;
+    color: var(--text-muted);
+}
+.set-row input {
+    flex: 1;
+    min-width: 0;
+    font-size: 16px; /* prevents iOS zoom */
+    padding: 0.5rem;
+}
+
 /* Inline editable cells */
 td.editable { cursor: pointer; transition: background 0.15s; }
 td.editable:hover { background: rgba(255,255,255,0.05); }
@@ -658,11 +817,35 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
     font-size: 1rem;
     padding: 0.6rem;
 }
+.single-item-modal .form-group {
+    margin-bottom: 0.75rem;
+}
+.single-item-modal .form-group:last-child {
+    margin-bottom: 0;
+}
+.modal-form-section {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem;
+    margin-bottom: 0.75rem;
+}
+.modal-section-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-bottom: 0.6rem;
+}
 .single-item-macros {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
     gap: 0.5rem;
     margin-bottom: 0.5rem;
+}
+.single-item-macros .form-group {
+    margin-bottom: 0;
 }
 .single-item-macros .form-group input {
     width: 100%;
@@ -678,6 +861,8 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
         margin: 0;
         display: flex;
         flex-direction: column;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
     }
     .single-item-modal form {
         flex: 1;
@@ -690,11 +875,38 @@ td.editable:hover { background: rgba(255,255,255,0.05); }
         padding: 0.7rem;
     }
     .single-item-macros {
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
         gap: 0.4rem;
     }
     .single-item-macros .form-group label {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
+    }
+    .modal-form-section {
+        padding: 0.65rem;
+        margin-bottom: 0.6rem;
+    }
+    .set-row {
+        gap: 0.35rem;
+    }
+    .set-row-label {
+        min-width: 36px;
+        font-size: 0.75rem;
+    }
+    .set-row input {
+        padding: 0.55rem 0.4rem;
+    }
+    .set-rows-header {
+        padding-left: 36px;
+        gap: 0.35rem;
+    }
+    .exercise-log-item {
+        padding: 0.7rem;
+        margin-bottom: 0.5rem;
+    }
+    .history-panel {
+        max-height: none;
+        flex: 1;
+        overflow-y: auto;
     }
 }
 
