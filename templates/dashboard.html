@@ -375,6 +375,33 @@ const chartDefaults = {
     },
 };
 
+// Solo-mode legend: clicking a legend item shows only that dataset, click again to restore all
+const soloLegendDefaults = JSON.parse(JSON.stringify(chartDefaults));
+soloLegendDefaults.plugins = {
+    ...chartDefaults.plugins,
+    legend: {
+        ...chartDefaults.plugins.legend,
+        onClick: function(e, legendItem, legend) {
+            const chart = legend.chart;
+            const clickedIndex = legendItem.datasetIndex;
+            const allHidden = chart.data.datasets.every((ds, i) =>
+                i === clickedIndex ? !chart.isDatasetVisible(i) : !chart.isDatasetVisible(i)
+            );
+            // If this is the only visible dataset, restore all
+            const visibleCount = chart.data.datasets.filter((_, i) => chart.isDatasetVisible(i)).length;
+            if (visibleCount === 1 && chart.isDatasetVisible(clickedIndex)) {
+                chart.data.datasets.forEach((_, i) => { chart.setDatasetVisibility(i, true); });
+            } else {
+                // Hide all except clicked
+                chart.data.datasets.forEach((_, i) => {
+                    chart.setDatasetVisibility(i, i === clickedIndex);
+                });
+            }
+            chart.update();
+        }
+    }
+};
+
 // ─── Weight Chart ───
 fetch('{{ url_for("metrics.api_data") }}')
     .then(r => r.json())
@@ -416,7 +443,7 @@ fetch('{{ url_for("metrics.api_data") }}')
                 mDatasets.push({
                     label: f.label, data: vals,
                     borderColor: f.color, backgroundColor: f.color + '20',
-                    tension: 0.3, fill: false,
+                    tension: 0.3, fill: false, spanGaps: true,
                 });
             }
         });
@@ -424,7 +451,7 @@ fetch('{{ url_for("metrics.api_data") }}')
             new Chart(document.getElementById('measurementsChart'), {
                 type: 'line',
                 data: { labels, datasets: mDatasets },
-                options: chartDefaults,
+                options: soloLegendDefaults,
             });
         }
     });
@@ -476,7 +503,7 @@ fetch('{{ url_for("metrics.api_strength_data") }}')
             new Chart(document.getElementById('strengthChart'), {
                 type: 'line',
                 data: { labels: allDates, datasets },
-                options: chartDefaults,
+                options: soloLegendDefaults,
             });
         }
     });
