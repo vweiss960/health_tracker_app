@@ -269,6 +269,10 @@ def _migrate_db():
 with app.app_context():
     _migrate_db()
     db.create_all()
+    # Force eager ORM mapper configuration so background threads can't
+    # race with lazy do_init() and leave properties without a .strategy.
+    from sqlalchemy.orm import configure_mappers
+    configure_mappers()
 
     # Auto-promote a user to admin via env var (for initial setup)
     _admin_user = os.environ.get('ADMIN_USER', '').strip()
