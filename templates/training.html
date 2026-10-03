@@ -79,7 +79,19 @@
             <div class="modal-form-section">
                 <div class="form-group">
                     <label>Exercise Name</label>
-                    <input type="text" name="exercise_name" placeholder="e.g. Bench Press, Squats, Running" required>
+                    <div style="position: relative;">
+                        <input type="text" name="exercise_name" id="exerciseNameInput" autocomplete="off" placeholder="e.g. Bench Press, Squats, Running" required
+                               oninput="showExerciseSuggestions(this.value); autofillCategory(this.value)"
+                               onfocus="showExerciseSuggestions(this.value)"
+                               onblur="hideExerciseSuggestions()">
+                        <div id="exerciseSuggestions"></div>
+                    </div>
+                    <style>
+                    #exerciseSuggestions { display: none; position: absolute; top: 100%; left: 0; right: 0; background: var(--card-bg, #1a1a1a); border: 1px solid var(--border, #333); border-radius: 0 0 6px 6px; max-height: 220px; overflow-y: auto; z-index: 100; box-shadow: 0 4px 10px rgba(0,0,0,0.4); }
+                    .exercise-suggestion { padding: 0.5rem 0.6rem; cursor: pointer; border-bottom: 1px solid var(--border, #333); font-size: 0.9rem; }
+                    .exercise-suggestion:last-child { border-bottom: none; }
+                    .exercise-suggestion:hover, .exercise-suggestion:active { background: var(--accent, #c0392b); }
+                    </style>
                 </div>
                 <div class="form-group">
                     <label>Category</label>
@@ -108,7 +120,7 @@
                 <div class="single-item-macros">
                     <div class="form-group">
                         <label>Duration (min)</label>
-                        <input type="number" step="1" name="duration_minutes" placeholder="min">
+                        <input type="number" step="any" min="0" name="duration_minutes" placeholder="min (e.g. 0.5)">
                     </div>
                     <div class="form-group">
                         <label>Calories</label>
@@ -158,7 +170,7 @@
                 <div class="single-item-macros">
                     <div class="form-group">
                         <label>Duration (min)</label>
-                        <input type="number" id="editDuration" step="1">
+                        <input type="number" id="editDuration" step="any" min="0">
                     </div>
                     <div class="form-group">
                         <label>Calories</label>
@@ -188,7 +200,7 @@
                 {% if e.category %}<span class="plan-tag" style="margin-left: 0.4rem;">{{ e.category }}</span>{% endif %}
                 {% if e.duration_minutes or e.calories_burned %}
                 <div class="exercise-log-meta" style="margin-top: 0.2rem;">
-                    {% if e.duration_minutes %}<span class="exercise-log-stat">{{ e.duration_minutes | int }} min</span>{% endif %}
+                    {% if e.duration_minutes %}<span class="exercise-log-stat">{{ '%g' | format(e.duration_minutes) }} min</span>{% endif %}
                     {% if e.calories_burned %}<span class="exercise-log-stat">{{ e.calories_burned | int }} cal</span>{% endif %}
                 </div>
                 {% endif %}
@@ -227,6 +239,61 @@ if (!new URLSearchParams(window.location.search).has('date')) {
     if (localDate !== serverDate) {
         window.location.replace(window.location.pathname + '?date=' + localDate);
     }
+}
+
+// Previously logged exercises for autocomplete, most recent first: [{name, category}, ...]
+var prevExercises = {{ previous_exercises | tojson }};
+
+// When a previously logged exercise is picked/typed, preselect its category
+function autofillCategory(name) {
+    var key = name.trim().toLowerCase();
+    for (var i = 0; i < prevExercises.length; i++) {
+        if (prevExercises[i].name.toLowerCase() === key) {
+            var cat = prevExercises[i].category;
+            var sel = document.querySelector('#exerciseModal select[name="category"]');
+            if (cat && sel && sel.querySelector('option[value="' + cat + '"]')) sel.value = cat;
+            return;
+        }
+    }
+}
+
+function showExerciseSuggestions(query) {
+    var box = document.getElementById('exerciseSuggestions');
+    var q = query.trim().toLowerCase();
+    var matches = [];
+    for (var i = 0; i < prevExercises.length && matches.length < 8; i++) {
+        if (!q || prevExercises[i].name.toLowerCase().indexOf(q) !== -1) {
+            matches.push(prevExercises[i].name);
+        }
+    }
+    // Nothing to suggest, or the only match is exactly what's already typed
+    if (!matches.length || (matches.length === 1 && matches[0].toLowerCase() === q)) {
+        box.style.display = 'none';
+        box.innerHTML = '';
+        return;
+    }
+    box.innerHTML = '';
+    matches.forEach(function(name) {
+        var div = document.createElement('div');
+        div.className = 'exercise-suggestion';
+        div.textContent = name;
+        // mousedown (not click) so it fires before the input's blur hides the box
+        div.addEventListener('mousedown', function(ev) {
+            ev.preventDefault();
+            document.getElementById('exerciseNameInput').value = name;
+            autofillCategory(name);
+            box.style.display = 'none';
+        });
+        box.appendChild(div);
+    });
+    box.style.display = 'block';
+}
+
+function hideExerciseSuggestions() {
+    setTimeout(function() {
+        var box = document.getElementById('exerciseSuggestions');
+        if (box) box.style.display = 'none';
+    }, 150);
 }
 
 function toggleExercise(el) {

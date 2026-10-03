@@ -43,11 +43,27 @@ def training_log():
     # Build set of exercise names already logged today (for strikethrough)
     logged_names = {e.exercise_name.lower() for e in entries}
 
+    # Previously logged exercise names for autocomplete (most recent first,
+    # deduped case-insensitively keeping the most recent spelling)
+    name_rows = db.session.query(TrainingEntry.exercise_name, TrainingEntry.category)\
+        .filter(TrainingEntry.user_id == current_user.id)\
+        .order_by(TrainingEntry.created_at.desc())\
+        .limit(1000).all()
+    seen = set()
+    previous_exercises = []
+    for name, category in name_rows:
+        key = name.strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        previous_exercises.append({'name': name.strip(), 'category': category})
+
     return render_template('training.html',
         entries=entries, view_date=view_date,
         plan_name=plan_name, ordered_plan=ordered_plan,
         today_day_name=today_day_name,
-        logged_names=logged_names)
+        logged_names=logged_names,
+        previous_exercises=previous_exercises)
 
 
 @training_bp.route('/add', methods=['POST'])
