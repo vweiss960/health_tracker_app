@@ -608,8 +608,9 @@ def analyze_food_photo():
             import anthropic
             client = anthropic.Anthropic(api_key=ai_key)
             response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-5",
                 max_tokens=1024,
+                thinking={"type": "disabled"},
                 messages=[{
                     "role": "user",
                     "content": [

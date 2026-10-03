@@ -220,8 +220,9 @@ def _ai_music_suggestions(provider, api_key, user_prompt):
             import anthropic
             client = anthropic.Anthropic(api_key=api_key)
             resp = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model="claude-sonnet-5",
                 max_tokens=1200,
+                thinking={"type": "disabled"},
                 system=system,
                 messages=messages,
             )

@@ -301,7 +301,7 @@ def _stream_claude(api_key, system_prompt, messages, user_id):
         current_text = ""
 
         with client.messages.stream(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-5",
             max_tokens=16384,
             system=system_prompt,
             tools=tools,
@@ -428,7 +428,7 @@ def _call_claude(api_key, system_prompt, messages):
               "input_schema": t["input_schema"]} for t in TOOL_DEFINITIONS]
 
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-5",
         max_tokens=16384,
         system=system_prompt,
         tools=tools,
@@ -450,7 +450,7 @@ def _call_claude(api_key, system_prompt, messages):
         messages.append({"role": "user", "content": tool_results})
 
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-5",
             max_tokens=16384,
             system=system_prompt,
             tools=tools,
